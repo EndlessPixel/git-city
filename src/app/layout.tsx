@@ -13,11 +13,22 @@ export const metadata: Metadata = {
   title: "Git City - Your GitHub as a 3D City",
   description:
     "Explore GitHub users as buildings in a 3D pixel art city. Fly through the city and discover developers.",
+  keywords: [
+    "github",
+    "3d city",
+    "developer profile",
+    "contributions",
+    "pixel art",
+    "open source",
+    "git visualization",
+  ],
   openGraph: {
     title: "Git City - Your GitHub as a 3D City",
     description:
       "Explore GitHub users as buildings in a 3D pixel art city. Fly through the city and discover developers.",
     siteName: "Git City",
+    type: "website",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
@@ -25,6 +36,13 @@ export const metadata: Metadata = {
     site: "@samuelrizzondev",
   },
   authors: [{ name: "Samuel Rizzon", url: "https://x.com/samuelrizzondev" }],
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({

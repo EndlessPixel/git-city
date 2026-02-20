@@ -177,17 +177,18 @@ function ShopPreviewScene({
 
         {/* Effects use y=0 as ground, so offset them */}
         <group position={[0, -H / 2, 0]}>
-          {/* Hovered item preview */}
-          {previewItemId && previewItemId !== "custom_color" && (
-            <EffectForItem itemId={previewItemId} dims={dims} billboardImages={previewItemId === "billboard" ? billboardImages : undefined} />
+          {/* Always show owned effects (except billboard, handled separately) */}
+          {ownedItems
+            .filter((id) => id !== "billboard")
+            .map((id) => <EffectForItem key={id} itemId={id} dims={dims} />)}
+
+          {/* Hovered item preview — only if not already owned (avoid duplicate) */}
+          {previewItemId && previewItemId !== "custom_color" && previewItemId !== "billboard" && !ownedItems.includes(previewItemId) && (
+            <EffectForItem itemId={previewItemId} dims={dims} />
           )}
 
-          {/* Idle: show all owned effects */}
-          {!previewItemId &&
-            ownedItems.map((id) => <EffectForItem key={id} itemId={id} dims={dims} billboardImages={id === "billboard" ? billboardImages : undefined} />)}
-
-          {/* Always show billboard if images exist but not already rendered above */}
-          {billboardImages.length > 0 && previewItemId !== "billboard" && !(!previewItemId && ownedItems.includes("billboard")) && (
+          {/* Billboard: always render stably to avoid texture reload flicker */}
+          {(billboardImages.length > 0 || ownedItems.includes("billboard") || previewItemId === "billboard") && (
             <EffectForItem itemId="billboard" dims={dims} billboardImages={billboardImages} />
           )}
         </group>

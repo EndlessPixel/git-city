@@ -39,6 +39,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ["effect", "structure", "identity"];
 
+const ENABLE_PIX = false; // flip to true when AbacatePay is live
+
 const ACCENT = "#c8e64a";
 const SHADOW = "#5a7a00";
 const PENDING_BILLBOARD_KEY = "pending_billboard";
@@ -803,7 +805,7 @@ export default function ShopClient({
                                 <span className="w-14 text-center text-xs text-muted">
                                   &#10003;
                                 </span>
-                              ) : isBrl ? (
+                              ) : isBrl && ENABLE_PIX ? (
                                 <>
                                   <button
                                     onClick={() => checkout(item.id, "abacatepay")}
@@ -869,7 +871,7 @@ export default function ShopClient({
 
             {/* Payment method note */}
             <p className="mt-5 text-center text-[10px] text-dim normal-case">
-              {isBrl ? "PIX via AbacatePay · Card via Stripe" : "Payment via Stripe"}
+              {isBrl && ENABLE_PIX ? "PIX via AbacatePay · Card via Stripe" : "Payment via Stripe"}
             </p>
           </div>
         </div>
