@@ -379,6 +379,15 @@ function HomeContent() {
               <span className="text-cream">{theme.name}</span>
             </button>
           </div>
+
+          {/* Navigation hints (bottom-right) */}
+          <div className="absolute bottom-3 right-3 text-right text-[8px] leading-loose text-muted sm:bottom-4 sm:right-4 sm:text-[9px]">
+            <div><span className="text-cream">Drag</span> orbit</div>
+            <div><span className="text-cream">Scroll</span> zoom</div>
+            <div><span className="text-cream">Right-drag</span> pan</div>
+            <div><span className="text-cream">Click</span> building</div>
+            <div><span style={{ color: theme.accent }}>ESC</span> back</div>
+          </div>
         </div>
       )}
 
@@ -656,6 +665,16 @@ function HomeContent() {
           >
             Item purchased! Effect applied to your building.
           </div>
+        </div>
+      )}
+
+      {/* ─── Navigation Hints (bottom-right, when building selected) ─── */}
+      {selectedBuilding && !flyMode && (
+        <div className="pointer-events-none fixed bottom-3 right-3 z-30 text-right text-[8px] leading-loose text-muted sm:bottom-6 sm:right-6 sm:text-[9px]">
+          <div><span className="text-cream">Drag</span> orbit</div>
+          <div><span className="text-cream">Scroll</span> zoom</div>
+          <div><span className="text-cream">Right-drag</span> pan</div>
+          <div><span style={{ color: theme.accent }}>ESC</span> close</div>
         </div>
       )}
 
