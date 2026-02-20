@@ -38,5 +38,11 @@ export async function GET(request: Request) {
       .eq("claimed", false);
   }
 
+  // Support ?next= param for post-login redirect (e.g. /shop)
+  const next = searchParams.get("next");
+  if (next === "/shop" && githubLogin) {
+    return NextResponse.redirect(`${origin}/shop/${githubLogin}`);
+  }
+
   return NextResponse.redirect(`${origin}/?user=${githubLogin}`);
 }

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +21,10 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    creator: "@samuelrizzondev",
+    site: "@samuelrizzondev",
   },
+  authors: [{ name: "Samuel Rizzon", url: "https://x.com/samuelrizzondev" }],
 };
 
 export default function RootLayout({
@@ -41,7 +46,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-bg font-pixel text-warm">{children}</body>
+      <body className="bg-bg font-pixel text-warm">
+        {children}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }

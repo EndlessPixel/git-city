@@ -26,6 +26,22 @@ export async function POST() {
   }
 
   const admin = getSupabaseAdmin();
+
+  // Check that the user hasn't already claimed a different building
+  const { data: alreadyClaimed } = await admin
+    .from("developers")
+    .select("github_login")
+    .eq("claimed_by", user.id)
+    .maybeSingle();
+
+  if (alreadyClaimed) {
+    return NextResponse.json(
+      { error: "You have already claimed a building" },
+      { status: 409 }
+    );
+  }
+
+  // Atomic claim: eq("claimed", false) + is("claimed_by", null) prevents race conditions
   const { data, error } = await admin
     .from("developers")
     .update({
@@ -36,6 +52,7 @@ export async function POST() {
     })
     .eq("github_login", githubLogin)
     .eq("claimed", false)
+    .is("claimed_by", null)
     .select("github_login")
     .single();
 

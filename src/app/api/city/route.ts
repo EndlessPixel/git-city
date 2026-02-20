@@ -11,6 +11,7 @@ export async function GET(request: Request) {
 
   const sb = getSupabaseAdmin();
 
+  // Round 1: devs + stats in parallel
   const [devsResult, statsResult] = await Promise.all([
     sb
       .from("developers")
@@ -22,11 +23,77 @@ export async function GET(request: Request) {
     sb.from("city_stats").select("*").eq("id", 1).single(),
   ]);
 
-  return NextResponse.json({
-    developers: devsResult.data ?? [],
-    stats: statsResult.data ?? {
-      total_developers: 0,
-      total_contributions: 0,
+  const devs = devsResult.data ?? [];
+  const devIds = devs.map((d) => d.id);
+
+  if (devIds.length === 0) {
+    return NextResponse.json(
+      {
+        developers: [],
+        stats: statsResult.data ?? { total_developers: 0, total_contributions: 0 },
+      },
+      { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+    );
+  }
+
+  // Round 2: purchases + customizations in parallel (2 queries instead of 3)
+  const [purchasesResult, customizationsResult] = await Promise.all([
+    sb
+      .from("purchases")
+      .select("developer_id, item_id")
+      .in("developer_id", devIds)
+      .eq("status", "completed"),
+    sb
+      .from("developer_customizations")
+      .select("developer_id, item_id, config")
+      .in("developer_id", devIds)
+      .in("item_id", ["custom_color", "billboard"]),
+  ]);
+
+  // Build owned items map
+  const ownedItemsMap: Record<number, string[]> = {};
+  for (const row of purchasesResult.data ?? []) {
+    if (!ownedItemsMap[row.developer_id]) ownedItemsMap[row.developer_id] = [];
+    ownedItemsMap[row.developer_id].push(row.item_id);
+  }
+
+  // Build customization maps
+  const customColorMap: Record<number, string> = {};
+  const billboardImagesMap: Record<number, string[]> = {};
+  for (const row of customizationsResult.data ?? []) {
+    const config = row.config as Record<string, unknown>;
+    if (row.item_id === "custom_color" && typeof config?.color === "string") {
+      customColorMap[row.developer_id] = config.color;
+    }
+    if (row.item_id === "billboard") {
+      if (Array.isArray(config?.images)) {
+        billboardImagesMap[row.developer_id] = config.images as string[];
+      } else if (typeof config?.image_url === "string") {
+        billboardImagesMap[row.developer_id] = [config.image_url];
+      }
+    }
+  }
+
+  // Merge everything
+  const developersWithItems = devs.map((dev) => ({
+    ...dev,
+    owned_items: ownedItemsMap[dev.id] ?? [],
+    custom_color: customColorMap[dev.id] ?? null,
+    billboard_images: billboardImagesMap[dev.id] ?? [],
+  }));
+
+  return NextResponse.json(
+    {
+      developers: developersWithItems,
+      stats: statsResult.data ?? {
+        total_developers: 0,
+        total_contributions: 0,
+      },
     },
-  });
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    }
+  );
 }

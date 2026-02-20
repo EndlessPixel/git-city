@@ -174,6 +174,13 @@ function SkyDome({ stops }: { stops: [number, string][] }) {
     return new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
   }, [stops]);
 
+  useEffect(() => {
+    return () => {
+      mat.map?.dispose();
+      mat.dispose();
+    };
+  }, [mat]);
+
   return (
     <mesh material={mat}>
       <sphereGeometry args={[900, 32, 48]} />

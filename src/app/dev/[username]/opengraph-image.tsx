@@ -204,6 +204,7 @@ export default async function Image({
           >
             <span style={{ fontSize: 20, color: cream }}>GIT</span>
             <span style={{ fontSize: 20, color: accent }}>CITY</span>
+            <span style={{ fontSize: 13, color: muted, marginLeft: 8 }}>by @samuelrizzondev</span>
           </div>
         </div>
       </div>

@@ -5,6 +5,18 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
+import {
+  NeonOutline,
+  ParticleAura,
+  SpotlightEffect,
+  RooftopFire,
+  Helipad,
+  AntennaArray,
+  RooftopGarden,
+  Spire,
+  Billboards,
+  Flag,
+} from "./BuildingEffects";
 
 // Shared constants
 const WHITE = new THREE.Color("#ffffff");
@@ -311,6 +323,8 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
     const seed =
       building.login.split("").reduce((a, c) => a + c.charCodeAt(0), 0) *
       137;
+    // custom_color overrides building face color
+    const faceColor = building.custom_color ?? colors.face;
     const front = createWindowTexture(
       building.floors,
       building.windowsPerFloor,
@@ -318,7 +332,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       seed,
       colors.windowLit,
       colors.windowOff,
-      colors.face
+      faceColor
     );
     const side = createWindowTexture(
       building.floors,
@@ -327,7 +341,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       seed + 7919,
       colors.windowLit,
       colors.windowOff,
-      colors.face
+      faceColor
     );
     return { front, side };
   }, [building, colors]);
@@ -386,6 +400,14 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
     [labelTexture]
   );
 
+  // Dispose materials + label material on unmount/change
+  useEffect(() => {
+    return () => {
+      for (const mat of materials) mat.dispose();
+      labelMaterial.dispose();
+    };
+  }, [materials, labelMaterial]);
+
   // Dim/undim building when another is focused
   useEffect(() => {
     for (const mat of materials) {
@@ -420,6 +442,38 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       {building.claimed && <ClaimedGlow height={building.height} width={building.width} depth={building.depth} />}
 
       {focused && <FocusBeacon height={building.height} width={building.width} depth={building.depth} accentColor={accentColor ?? "#c8e64a"} />}
+
+      {/* Purchased effects */}
+      {building.owned_items?.includes("neon_outline") && (
+        <NeonOutline width={building.width} height={building.height} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("particle_aura") && (
+        <ParticleAura width={building.width} height={building.height} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("spotlight") && (
+        <SpotlightEffect height={building.height} width={building.width} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("rooftop_fire") && (
+        <RooftopFire height={building.height} width={building.width} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("helipad") && (
+        <Helipad height={building.height} width={building.width} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("antenna_array") && (
+        <AntennaArray height={building.height} />
+      )}
+      {building.owned_items?.includes("rooftop_garden") && (
+        <RooftopGarden height={building.height} width={building.width} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("spire") && (
+        <Spire height={building.height} width={building.width} depth={building.depth} />
+      )}
+      {building.owned_items?.includes("billboard") && (
+        <Billboards height={building.height} width={building.width} depth={building.depth} images={building.billboard_images ?? []} />
+      )}
+      {building.owned_items?.includes("flag") && (
+        <Flag height={building.height} />
+      )}
     </group>
   );
 }

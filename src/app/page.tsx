@@ -7,11 +7,11 @@ import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   generateCityLayout,
-  type DeveloperRecord,
   type CityBuilding,
   type CityPlaza,
   type CityDecoration,
 } from "@/lib/github";
+import Link from "next/link";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -57,11 +57,21 @@ function HomeContent() {
   const [copied, setCopied] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [purchasedItem, setPurchasedItem] = useState<string | null>(null);
+
+  const [isMobile, setIsMobile] = useState(false);
 
   const theme = THEMES[themeIndex];
   const didInit = useRef(false);
-  const devsRef = useRef<DeveloperRecord[]>([]);
   const savedFocusRef = useRef<string | null>(null);
+
+  // Detect mobile/touch device
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640 || "ontouchstart" in window);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // Auth state listener
   useEffect(() => {
@@ -97,7 +107,6 @@ function HomeContent() {
     const res = await fetch("/api/city?from=0&to=500");
     if (!res.ok) return;
     const data = await res.json();
-    devsRef.current = data.developers;
     setStats(data.stats);
     if (data.developers.length > 0) {
       const layout = generateCityLayout(data.developers);
@@ -131,6 +140,19 @@ function HomeContent() {
       setFocusedBuilding(userParam);
     }
   }, [userParam, buildings.length]);
+
+  // Detect post-purchase redirect (?purchased=item_id)
+  const purchasedParam = searchParams.get("purchased");
+  useEffect(() => {
+    if (purchasedParam) {
+      setPurchasedItem(purchasedParam);
+      // Reload city to reflect new purchase
+      reloadCity();
+      // Clear purchased param from URL after a delay
+      const timer = setTimeout(() => setPurchasedItem(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [purchasedParam, reloadCity]);
 
   const searchUser = useCallback(async () => {
     const trimmed = username.trim().toLowerCase();
@@ -214,6 +236,12 @@ function HomeContent() {
     : null;
   const canClaim = !!session && !!myBuilding && !myBuilding.claimed;
 
+  // Shop link: logged in + claimed → own shop, otherwise → /shop landing
+  const shopHref =
+    session && myBuilding?.claimed
+      ? `/shop/${myBuilding.login}`
+      : "/shop";
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-bg font-pixel uppercase text-warm">
       {/* 3D Canvas */}
@@ -248,7 +276,7 @@ function HomeContent() {
           </div>
 
           {/* Flight data */}
-          <div className="absolute bottom-6 left-6 text-[10px] leading-loose text-muted">
+          <div className="absolute bottom-4 left-3 text-[9px] leading-loose text-muted sm:bottom-6 sm:left-6 sm:text-[10px]">
             <div className="flex items-center gap-2">
               <span>SPD</span>
               <span style={{ color: theme.accent }} className="w-6 text-right">
@@ -273,7 +301,7 @@ function HomeContent() {
           </div>
 
           {/* Controls hint */}
-          <div className="absolute bottom-6 right-6 text-right text-[9px] leading-loose text-muted">
+          <div className="absolute bottom-4 right-3 text-right text-[8px] leading-loose text-muted sm:bottom-6 sm:right-6 sm:text-[9px]">
             {flyPaused ? (
               <>
                 <div>
@@ -319,7 +347,7 @@ function HomeContent() {
       {exploreMode && !flyMode && (
         <div className="pointer-events-none fixed inset-0 z-20">
           {/* Back button */}
-          <div className="pointer-events-auto absolute top-4 left-4">
+          <div className="pointer-events-auto absolute top-3 left-3 sm:top-4 sm:left-4">
             <button
               onClick={() => { setExploreMode(false); setFocusedBuilding(savedFocusRef.current); savedFocusRef.current = null; }}
               className="flex items-center gap-2 border-[3px] border-border bg-bg/70 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
@@ -333,7 +361,7 @@ function HomeContent() {
           </div>
 
           {/* Theme switcher (bottom-left) */}
-          <div className="pointer-events-auto absolute bottom-4 left-4">
+          <div className="pointer-events-auto absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
             <button
               onClick={() => setThemeIndex((i) => (i + 1) % THEMES.length)}
               className="flex items-center gap-2 border-[3px] border-border bg-bg/70 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
@@ -348,9 +376,25 @@ function HomeContent() {
         </div>
       )}
 
+      {/* ─── Shop (top-left, always visible) ─── */}
+      {!flyMode && !exploreMode && (
+        <div className="pointer-events-auto fixed top-3 left-3 z-30 sm:top-4 sm:left-4">
+          <Link
+            href={shopHref}
+            className="btn-press flex items-center gap-1.5 px-4 py-2 text-[10px] text-bg"
+            style={{
+              backgroundColor: theme.accent,
+              boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+            }}
+          >
+            Shop
+          </Link>
+        </div>
+      )}
+
       {/* ─── Auth (top-right) ─── */}
       {!flyMode && !exploreMode && (
-        <div className="pointer-events-auto fixed top-4 right-4 z-30 flex items-center gap-2">
+        <div className="pointer-events-auto fixed top-3 right-3 z-30 flex flex-wrap items-center justify-end gap-1.5 sm:top-4 sm:right-4 sm:gap-2">
           {!session ? (
             <button
               onClick={handleSignIn}
@@ -391,16 +435,16 @@ function HomeContent() {
       {/* ─── Main UI Overlay ─── */}
       {!flyMode && !exploreMode && (
         <div
-          className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-between py-8 px-4"
+          className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-between pt-12 pb-4 px-3 sm:py-8 sm:px-4"
           style={{
             background:
               "linear-gradient(to bottom, rgba(13,13,15,0.88) 0%, rgba(13,13,15,0.55) 30%, transparent 60%, transparent 85%, rgba(13,13,15,0.5) 100%)",
           }}
         >
           {/* Top */}
-          <div className="pointer-events-auto flex w-full max-w-2xl flex-col items-center gap-5">
+          <div className="pointer-events-auto flex w-full max-w-2xl flex-col items-center gap-3 sm:gap-5">
             <div className="text-center">
-              <h1 className="text-3xl text-cream md:text-5xl">
+              <h1 className="text-2xl text-cream sm:text-3xl md:text-5xl">
                 Git{" "}
                 <span style={{ color: theme.accent }}>City</span>
               </h1>
@@ -419,7 +463,7 @@ function HomeContent() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="find yourself in the city"
-                className="flex-1 border-[3px] border-border bg-bg-raised px-4 py-2.5 text-xs text-cream outline-none transition-colors placeholder:text-dim"
+                className="min-w-0 flex-1 border-[3px] border-border bg-bg-raised px-3 py-2 text-xs text-cream outline-none transition-colors placeholder:text-dim sm:px-4 sm:py-2.5"
                 style={{ borderColor: undefined }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = theme.accent)}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "")}
@@ -427,7 +471,7 @@ function HomeContent() {
               <button
                 type="submit"
                 disabled={loading || !username.trim()}
-                className="btn-press px-5 py-2.5 text-xs text-bg disabled:opacity-40"
+                className="btn-press flex-shrink-0 px-4 py-2 text-xs text-bg disabled:opacity-40 sm:px-5 sm:py-2.5"
                 style={{
                   backgroundColor: theme.accent,
                   boxShadow: `4px 4px 0 0 ${theme.shadow}`,
@@ -450,32 +494,45 @@ function HomeContent() {
 
           {/* Center - Explore buttons */}
           {buildings.length > 0 && (
-            <div className="pointer-events-auto flex items-center gap-4">
-              <button
-                onClick={() => setExploreMode(true)}
-                className="btn-press px-7 py-3.5 text-sm text-bg"
-                style={{
-                  backgroundColor: theme.accent,
-                  boxShadow: `4px 4px 0 0 ${theme.shadow}`,
-                }}
-              >
-                Explore City
-              </button>
-              <button
-                onClick={() => { setFocusedBuilding(null); setFlyMode(true); }}
-                className="btn-press px-7 py-3.5 text-sm text-bg"
-                style={{
-                  backgroundColor: theme.accent,
-                  boxShadow: `4px 4px 0 0 ${theme.shadow}`,
-                }}
-              >
-                &#9992; Fly Mode
-              </button>
+            <div className="pointer-events-auto flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <button
+                  onClick={() => setExploreMode(true)}
+                  className="btn-press px-7 py-3 text-xs sm:py-3.5 sm:text-sm text-bg"
+                  style={{
+                    backgroundColor: theme.accent,
+                    boxShadow: `4px 4px 0 0 ${theme.shadow}`,
+                  }}
+                >
+                  Explore City
+                </button>
+                {!isMobile && (
+                  <button
+                    onClick={() => { setFocusedBuilding(null); setFlyMode(true); }}
+                    className="btn-press px-7 py-3 text-xs sm:py-3.5 sm:text-sm text-bg"
+                    style={{
+                      backgroundColor: theme.accent,
+                      boxShadow: `4px 4px 0 0 ${theme.shadow}`,
+                    }}
+                  >
+                    &#9992; Fly
+                  </button>
+                )}
+              </div>
+              {isMobile && (
+                <a
+                  href="/leaderboard"
+                  className="btn-press mt-1 border-[3px] border-border bg-bg-raised px-5 py-2 text-[10px] backdrop-blur-sm"
+                  style={{ color: theme.accent }}
+                >
+                  &#9819; Leaderboard
+                </a>
+              )}
             </div>
           )}
 
           {/* Bottom */}
-          <div className="pointer-events-auto flex w-full items-end justify-between">
+          <div className="pointer-events-auto flex w-full flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
             {/* Theme switcher */}
             <button
               onClick={() => setThemeIndex((i) => (i + 1) % THEMES.length)}
@@ -512,14 +569,23 @@ function HomeContent() {
                   Search for a GitHub username to join the city
                 </p>
               )}
-              <p className="mt-1 text-[8px] text-dim/50 normal-case">
-                git-city &middot; @samuelrizzondev
+              <p className="mt-1 text-[9px] text-muted normal-case">
+                built by{" "}
+                <a
+                  href="https://x.com/samuelrizzondev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-cream"
+                  style={{ color: theme.accent }}
+                >
+                  @samuelrizzondev
+                </a>
               </p>
             </div>
 
-            {/* Mini Leaderboard */}
+            {/* Mini Leaderboard - hidden on mobile */}
             {buildings.length > 0 && (
-              <div className="w-[200px]">
+              <div className="hidden w-[200px] sm:block">
                 <a
                   href="/leaderboard"
                   className="mb-2 block text-right text-xs text-muted transition-colors hover:text-cream normal-case"
@@ -569,6 +635,21 @@ function HomeContent() {
         </div>
       )}
 
+      {/* ─── Purchase Toast ─── */}
+      {purchasedItem && (
+        <div className="fixed top-16 left-1/2 z-50 -translate-x-1/2">
+          <div
+            className="border-[3px] px-5 py-2.5 text-[10px] text-bg"
+            style={{
+              backgroundColor: theme.accent,
+              borderColor: theme.shadow,
+            }}
+          >
+            Item purchased! Effect applied to your building.
+          </div>
+        </div>
+      )}
+
       {/* ─── Share Modal ─── */}
       {shareData && !flyMode && !exploreMode && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
@@ -579,7 +660,7 @@ function HomeContent() {
           />
 
           {/* Modal */}
-          <div className="relative border-[3px] border-border bg-bg-raised p-6 text-center">
+          <div className="relative mx-3 border-[3px] border-border bg-bg-raised p-4 text-center sm:mx-0 sm:p-6">
             {/* Close */}
             <button
               onClick={() => setShareData(null)}
@@ -597,10 +678,10 @@ function HomeContent() {
             </p>
 
             {/* Buttons */}
-            <div className="mt-5 flex items-center justify-center gap-3">
+            <div className="mt-4 flex flex-col items-center gap-2 sm:mt-5 sm:flex-row sm:justify-center sm:gap-3">
               <a
                 href={`https://x.com/intent/tweet?text=${encodeURIComponent(
-                  `My building in Git City: ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. Find yours →`
+                  `My building in Git City by @samuelrizzondev: ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. Find yours →`
                 )}&url=${encodeURIComponent(
                   `${window.location.origin}/dev/${shareData.login}`
                 )}`}

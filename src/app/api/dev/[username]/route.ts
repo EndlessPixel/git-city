@@ -99,7 +99,11 @@ export async function GET(
   if (cached) {
     const age = Date.now() - new Date(cached.fetched_at).getTime();
     if (age < 24 * 60 * 60 * 1000) {
-      return NextResponse.json(cached);
+      return NextResponse.json(cached, {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      });
     }
   }
 
@@ -225,17 +229,7 @@ export async function GET(
       );
     }
 
-    // Recalculate ranks
-    await sb.rpc("recalculate_ranks");
-
-    // Re-fetch to get updated rank
-    const { data: final } = await sb
-      .from("developers")
-      .select("*")
-      .eq("github_login", ghUser.login.toLowerCase())
-      .single();
-
-    return NextResponse.json(final ?? upserted);
+    return NextResponse.json(upserted);
   } catch (err) {
     console.error("Dev route error:", err);
     return NextResponse.json(

@@ -18,6 +18,9 @@ export interface DeveloperRecord {
   claimed: boolean;
   fetch_priority: number;
   claimed_at: string | null;
+  owned_items?: string[];
+  custom_color?: string | null;
+  billboard_images?: string[];
 }
 
 export interface TopRepo {
@@ -37,6 +40,9 @@ export interface CityBuilding {
   avatar_url: string | null;
   primary_language: string | null;
   claimed: boolean;
+  owned_items: string[];
+  custom_color?: string | null;
+  billboard_images?: string[];
   position: [number, number, number];
   width: number;
   depth: number;
@@ -198,6 +204,9 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
         avatar_url: dev.avatar_url,
         primary_language: dev.primary_language,
         claimed: dev.claimed ?? false,
+        owned_items: dev.owned_items ?? [],
+        custom_color: dev.custom_color ?? null,
+        billboard_images: dev.billboard_images ?? [],
         position: [posX, 0, posZ],
         width: w,
         depth: d,
@@ -324,6 +333,23 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
   }
 
   return { buildings, plazas, decorations };
+}
+
+// ─── Building Dimensions (reusable for shop preview) ────────
+
+export function calcBuildingDims(
+  githubLogin: string,
+  contributions: number,
+  publicRepos: number,
+  maxContrib: number
+): { width: number; height: number; depth: number } {
+  const height = calcHeight(contributions, maxContrib);
+  const seed1 = hashStr(githubLogin);
+  const repoFactor = Math.min(1, publicRepos / 100);
+  const baseW = 14 + repoFactor * 16;
+  const width = Math.round(baseW + seededRandom(seed1) * 10);
+  const depth = Math.round(12 + seededRandom(seed1 + 99) * 20);
+  return { width, height, depth };
 }
 
 // ─── Utilities (kept for Building3D seeded variance) ─────────

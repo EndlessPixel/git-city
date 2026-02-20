@@ -136,6 +136,20 @@ export default async function Image() {
           <span>·</span>
           <span>Discover</span>
         </div>
+
+        {/* Creator */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 28,
+            right: 32,
+            display: "flex",
+            fontSize: 14,
+            color: muted,
+          }}
+        >
+          by @samuelrizzondev
+        </div>
       </div>
     ),
     {

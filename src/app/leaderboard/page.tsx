@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase-server";
 
+export const revalidate = 600; // ISR: regenerate every 10 minutes
+
 export const metadata: Metadata = {
   title: "Leaderboard - Git City",
   description:
@@ -98,6 +100,7 @@ export default async function LeaderboardPage() {
                     alt={dev.github_login}
                     width={36}
                     height={36}
+                    unoptimized
                     className="border-[2px] border-border"
                     style={{ imageRendering: "pixelated" }}
                   />
@@ -153,6 +156,19 @@ export default async function LeaderboardPage() {
           >
             Enter the City
           </Link>
+
+          <p className="mt-6 text-[9px] text-muted normal-case">
+            built by{" "}
+            <a
+              href="https://x.com/samuelrizzondev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-cream"
+              style={{ color: accent }}
+            >
+              @samuelrizzondev
+            </a>
+          </p>
         </div>
       </div>
     </main>
