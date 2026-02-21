@@ -172,7 +172,6 @@ export default async function ShopPage({ params }: Props) {
                 alt={dev.github_login}
                 width={56}
                 height={56}
-                unoptimized
                 className="border-[2px] border-border flex-shrink-0"
                 style={{ imageRendering: "pixelated" }}
               />

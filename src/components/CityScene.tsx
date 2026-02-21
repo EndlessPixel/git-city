@@ -7,7 +7,8 @@ import Building3D from "./Building3D";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
 
-const LOD_DISTANCE = 400;
+const LOD_DISTANCE = 650;
+const LOD_ALWAYS_DETAIL_HEIGHT = 150; // tall buildings always render full detail
 const LOD_UPDATE_INTERVAL = 0.2; // seconds
 
 // Pre-allocated temp objects to avoid GC pressure in useFrame
@@ -100,7 +101,7 @@ export default function CityScene({
         focusedBuilding != null &&
         focusedBuilding.toLowerCase() === b.login.toLowerCase();
 
-      if (dist < LOD_DISTANCE || isFocused) {
+      if (dist < LOD_DISTANCE || isFocused || b.height >= LOD_ALWAYS_DETAIL_HEIGHT) {
         newNearSet.add(b.login);
       } else {
         far.push(b);

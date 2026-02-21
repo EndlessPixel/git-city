@@ -158,6 +158,15 @@ export async function GET(
     }
 
     const ghUser = await userRes.json();
+
+    // Reject organizations — only individual users have contributions
+    if (ghUser.type === "Organization") {
+      return NextResponse.json(
+        { error: "Organizations are not supported. Search for a user profile instead." },
+        { status: 400 }
+      );
+    }
+
     const repos: Array<{
       name: string;
       stargazers_count: number;
@@ -169,6 +178,14 @@ export async function GET(
 
     // Fetch contributions via GraphQL
     const contributions = await fetchContributions(ghUser.login);
+
+    // Reject users with zero public activity
+    if (contributions === 0 && ghUser.public_repos === 0) {
+      return NextResponse.json(
+        { error: "This user has no public activity on GitHub yet." },
+        { status: 400 }
+      );
+    }
 
     // Derived fields
     const ownRepos = repos.filter((r) => !r.fork);

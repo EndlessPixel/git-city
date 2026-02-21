@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import type { ShopItem } from "@/lib/items";
 
 /** Must match FREE_CLAIM_ITEM in lib/items.ts */
@@ -41,8 +42,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_ORDER = ["effect", "structure", "identity"];
-
-const ENABLE_PIX = false; // flip to true when AbacatePay is live
 
 const ACCENT = "#c8e64a";
 const SHADOW = "#5a7a00";
@@ -93,21 +92,7 @@ function dataUrlToFile(dataUrl: string, name: string, type: string): File {
 
 const PIX_EXPIRY_SECONDS = 900; // 15 minutes
 
-function detectBrazil(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const lang = navigator.language || "";
-  return (
-    lang.startsWith("pt") ||
-    Intl.DateTimeFormat().resolvedOptions().timeZone?.startsWith(
-      "America/Sao_Paulo"
-    ) === true
-  );
-}
-
-function formatPrice(item: ShopItem, isBrl: boolean): string {
-  if (isBrl) {
-    return `R$ ${(item.price_brl_cents / 100).toFixed(2).replace(".", ",")}`;
-  }
+function formatPrice(item: ShopItem): string {
   return `$${(item.price_usd_cents / 100).toFixed(2)}`;
 }
 
@@ -477,9 +462,11 @@ function BillboardUploadPanel({
                 >
                   <p className="text-[8px] text-dim">Slot {i + 1}</p>
                   {img ? (
-                    <img
+                    <Image
                       src={img}
                       alt={`Billboard ${i + 1}`}
+                      width={120}
+                      height={40}
                       className="h-10 w-full border-[1px] border-border object-cover"
                     />
                   ) : (
@@ -520,9 +507,11 @@ function BillboardUploadPanel({
           </p>
           <div className="flex items-center gap-3">
             {images[0] && (
-              <img
+              <Image
                 src={images[0]}
                 alt="Billboard preview"
+                width={56}
+                height={40}
                 className="h-10 w-14 border-[2px] border-border object-cover"
               />
             )}
@@ -557,7 +546,6 @@ export default function ShopClient({
 }: Props) {
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isBrl, setIsBrl] = useState(false);
   const [owned, setOwned] = useState<string[]>(ownedItems);
   const [pixModal, setPixModal] = useState<PixModalData | null>(null);
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
@@ -568,10 +556,6 @@ export default function ShopClient({
   const [previewBillboardImages, setPreviewBillboardImages] = useState<string[] | null>(null);
 
   const [autoUploading, setAutoUploading] = useState(false);
-
-  useEffect(() => {
-    setIsBrl(detectBrazil());
-  }, []);
 
   // Auto-upload pending billboard image after purchase redirect
   useEffect(() => {
@@ -643,7 +627,7 @@ export default function ShopClient({
         const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ item_id: itemId, provider, currency: isBrl ? "brl" : "usd" }),
+          body: JSON.stringify({ item_id: itemId, provider, currency: "usd" }),
         });
 
         const data = await res.json();
@@ -684,7 +668,7 @@ export default function ShopClient({
         setBuyingItem(null);
       }
     },
-    [buyingItem, isBrl, items, githubLogin]
+    [buyingItem, items, githubLogin]
   );
 
   const handlePixCompleted = useCallback(
@@ -762,16 +746,6 @@ export default function ShopClient({
           </div>
 
           <div className="border-[3px] border-border bg-bg-raised p-4 sm:p-6">
-            {/* Currency toggle */}
-            <div className="mb-5 flex items-center justify-end">
-              <button
-                onClick={() => setIsBrl(!isBrl)}
-                className="border-[2px] border-border px-2 py-0.5 text-xs text-muted transition-colors hover:text-cream"
-              >
-                {isBrl ? "BRL" : "USD"}
-              </button>
-            </div>
-
             {error && (
               <div className="mb-4 border-[2px] border-red-500/30 bg-red-500/10 px-3 py-2 text-[10px] text-red-400 normal-case">
                 {error}
@@ -852,33 +826,12 @@ export default function ShopClient({
                               ) : (
                                 <>
                                   <span className="mr-1 text-sm text-muted">
-                                    {formatPrice(item, isBrl)}
+                                    {formatPrice(item)}
                                   </span>
                                   {!showBuyButton ? (
                                     <span className="w-14 text-center text-xs text-muted">
                                       &#10003;
                                     </span>
-                                  ) : isBrl && ENABLE_PIX ? (
-                                    <>
-                                      <button
-                                        onClick={() => checkout(item.id, "abacatepay")}
-                                        disabled={isBuying || !!buyingItem}
-                                        className="btn-press px-3 py-1.5 text-xs text-bg disabled:opacity-40"
-                                        style={{
-                                          backgroundColor: ACCENT,
-                                          boxShadow: `2px 2px 0 0 ${SHADOW}`,
-                                        }}
-                                      >
-                                        {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 PIX" : "PIX"}
-                                      </button>
-                                      <button
-                                        onClick={() => checkout(item.id, "stripe")}
-                                        disabled={isBuying || !!buyingItem}
-                                        className="btn-press border-[2px] border-border px-3 py-1.5 text-xs text-cream transition-colors hover:border-border-light disabled:opacity-40"
-                                      >
-                                        {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 Card" : "Card"}
-                                      </button>
-                                    </>
                                   ) : (
                                     <button
                                       onClick={() => checkout(item.id, "stripe")}
@@ -926,7 +879,7 @@ export default function ShopClient({
 
             {/* Payment method note */}
             <p className="mt-5 text-center text-[10px] text-dim normal-case">
-              {isBrl && ENABLE_PIX ? "PIX via AbacatePay · Card via Stripe" : "Payment via Stripe"}
+              Payment via Stripe
             </p>
           </div>
         </div>

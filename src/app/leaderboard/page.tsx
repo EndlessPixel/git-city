@@ -100,7 +100,6 @@ export default async function LeaderboardPage() {
                     alt={dev.github_login}
                     width={36}
                     height={36}
-                    unoptimized
                     className="border-[2px] border-border"
                     style={{ imageRendering: "pixelated" }}
                   />

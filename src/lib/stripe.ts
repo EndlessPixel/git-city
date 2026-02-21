@@ -24,7 +24,7 @@ export async function createCheckoutSession(
   itemId: string,
   developerId: number,
   githubLogin: string,
-  currency: "usd" | "brl" = "usd",
+  _currency: "usd" | "brl" = "usd",
   customerEmail?: string
 ): Promise<{ url: string }> {
   const sb = getSupabaseAdmin();
@@ -42,7 +42,6 @@ export async function createCheckoutSession(
   }
 
   const stripe = getStripe();
-  const unitAmount = currency === "brl" ? item.price_brl_cents : item.price_usd_cents;
 
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -50,12 +49,12 @@ export async function createCheckoutSession(
     line_items: [
       {
         price_data: {
-          currency,
+          currency: "usd",
           product_data: {
             name: item.name,
             description: item.description || undefined,
           },
-          unit_amount: unitAmount,
+          unit_amount: item.price_usd_cents,
         },
         quantity: 1,
       },

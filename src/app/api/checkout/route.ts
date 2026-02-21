@@ -65,14 +65,14 @@ export async function POST(request: Request) {
   }
 
   // Parse body
-  let body: { item_id: string; provider: "stripe" | "abacatepay"; currency?: "usd" | "brl" };
+  let body: { item_id: string; provider: "stripe" | "abacatepay" };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { item_id, provider, currency } = body;
+  const { item_id, provider } = body;
 
   if (!item_id || !provider || !["stripe", "abacatepay"].includes(provider)) {
     return NextResponse.json({ error: "Invalid item_id or provider" }, { status: 400 });
@@ -158,19 +158,15 @@ export async function POST(request: Request) {
 
   try {
     if (provider === "stripe") {
-      const useBrl = currency === "brl";
-      const amountCents = useBrl ? item.price_brl_cents : item.price_usd_cents;
-      const cur = useBrl ? "brl" : "usd";
-
-      // Create pending purchase
+      // Create pending purchase (always USD)
       const { data: purchase, error: purchaseError } = await sb
         .from("purchases")
         .insert({
           developer_id: dev.id,
           item_id,
           provider: "stripe",
-          amount_cents: amountCents,
-          currency: cur,
+          amount_cents: item.price_usd_cents,
+          currency: "usd",
           status: "pending",
         })
         .select("id")
@@ -180,7 +176,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Failed to create purchase" }, { status: 500 });
       }
 
-      const { url } = await createCheckoutSession(item_id, dev.id, githubLogin, cur, user.email);
+      const { url } = await createCheckoutSession(item_id, dev.id, githubLogin, "usd", user.email);
       return NextResponse.json({ url, purchase_id: purchase.id });
     } else {
       // AbacatePay

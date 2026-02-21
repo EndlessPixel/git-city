@@ -11,6 +11,7 @@ import {
   type CityPlaza,
   type CityDecoration,
 } from "@/lib/github";
+import Image from "next/image";
 import Link from "next/link";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
@@ -31,17 +32,148 @@ interface CityStats {
   total_contributions: number;
 }
 
+// ─── Loading phases for search feedback ─────────────────────
+const LOADING_PHASES = [
+  { delay: 0,     text: "Fetching GitHub profile..." },
+  { delay: 2000,  text: "Analyzing contributions..." },
+  { delay: 5000,  text: "Building the city block..." },
+  { delay: 9000,  text: "Almost there..." },
+  { delay: 13000, text: "This one's a big profile. Hang tight..." },
+];
+
+// Errors that won't change if you retry the same username
+const PERMANENT_ERROR_CODES = new Set(["not-found", "org", "no-activity"]);
+
+const ERROR_MESSAGES: Record<string, { primary: (u: string) => string; secondary: string; hasRetry?: boolean; hasLink?: boolean }> = {
+  "not-found": {
+    primary: (u) => `"@${u}" doesn't exist on GitHub`,
+    secondary: "Check the spelling — could be a typo. GitHub usernames are case-insensitive.",
+  },
+  "org": {
+    primary: (u) => `"@${u}" is an organization, not a person`,
+    secondary: "Git City is for individual profiles. Try searching for one of its contributors by their personal username.",
+  },
+  "no-activity": {
+    primary: (u) => `"@${u}" has no public activity yet`,
+    secondary: "Is this you? Open your profile settings, scroll to 'Contributions & activity', and enable 'Include private contributions'. Then search again.",
+    hasLink: true,
+  },
+  "rate-limit": {
+    primary: () => "Search limit reached",
+    secondary: "You can look up 10 new profiles per hour. Developers already in the city are unlimited.",
+  },
+  "github-rate-limit": {
+    primary: () => "GitHub's API is temporarily unavailable",
+    secondary: "Too many requests to GitHub. Try again in a few minutes.",
+  },
+  "network": {
+    primary: () => "Couldn't reach the server",
+    secondary: "Check your internet connection and try again.",
+    hasRetry: true,
+  },
+  "generic": {
+    primary: () => "Something went wrong",
+    secondary: "An unexpected error occurred. Try again.",
+    hasRetry: true,
+  },
+};
+
+function SearchFeedback({
+  feedback,
+  accentColor,
+  onDismiss,
+  onRetry,
+}: {
+  feedback: { type: "loading" | "error"; code?: string; username?: string; raw?: string } | null;
+  accentColor: string;
+  onDismiss: () => void;
+  onRetry: () => void;
+}) {
+  const [phaseIndex, setPhaseIndex] = useState(0);
+
+  // Phased loading messages
+  useEffect(() => {
+    if (feedback?.type !== "loading") { setPhaseIndex(0); return; }
+    const timers = LOADING_PHASES.map((phase, i) =>
+      setTimeout(() => setPhaseIndex(i), phase.delay)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [feedback?.type]);
+
+  // Auto-dismiss errors after 8s (except persistent ones)
+  useEffect(() => {
+    if (feedback?.type !== "error") return;
+    const code = feedback.code ?? "generic";
+    if (code === "no-activity" || code === "network" || code === "generic") return;
+    const timer = setTimeout(onDismiss, 8000);
+    return () => clearTimeout(timer);
+  }, [feedback, onDismiss]);
+
+  if (!feedback) return null;
+
+  // Loading state
+  if (feedback.type === "loading") {
+    return (
+      <div className="flex items-center gap-2 py-1 animate-[fade-in_0.15s_ease-out]">
+        <span className="blink-dot h-2 w-2 flex-shrink-0" style={{ backgroundColor: accentColor }} />
+        <span className="text-[11px] text-muted normal-case">{LOADING_PHASES[phaseIndex].text}</span>
+      </div>
+    );
+  }
+
+  // Error state
+  const code = feedback.code ?? "generic";
+  const msg = ERROR_MESSAGES[code] ?? ERROR_MESSAGES.generic;
+  const u = feedback.username ?? "";
+
+  return (
+    <div
+      className="relative w-full max-w-md border-[3px] bg-bg-raised/90 px-4 py-3 backdrop-blur-sm animate-[fade-in_0.15s_ease-out]"
+      style={{ borderColor: code === "rate-limit" ? accentColor + "66" : "rgba(248, 81, 73, 0.4)" }}
+    >
+      <button onClick={onDismiss} className="absolute top-2 right-2 text-[10px] text-muted transition-colors hover:text-cream">&#10005;</button>
+      <p className="text-[11px] text-cream normal-case pr-4">{msg.primary(u)}</p>
+      <p className="mt-1 text-[10px] text-muted normal-case">{msg.secondary}</p>
+      {msg.hasLink && (
+        <a
+          href="https://github.com/settings/profile"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-[10px] normal-case transition-colors hover:text-cream"
+          style={{ color: accentColor }}
+        >
+          Open Profile Settings &rarr;
+        </a>
+      )}
+      {msg.hasRetry && (
+        <button
+          onClick={onRetry}
+          className="btn-press mt-2 border-[2px] border-border px-3 py-1 text-[10px] text-cream transition-colors hover:border-border-light"
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
 function HomeContent() {
   const searchParams = useSearchParams();
   const userParam = searchParams.get("user");
 
   const [username, setUsername] = useState("");
+  const failedUsernamesRef = useRef<Map<string, string>>(new Map()); // username -> error code
   const [buildings, setBuildings] = useState<CityBuilding[]>([]);
   const [plazas, setPlazas] = useState<CityPlaza[]>([]);
   const [decorations, setDecorations] = useState<CityDecoration[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "loading" | "error";
+    code?: "not-found" | "org" | "no-activity" | "rate-limit" | "github-rate-limit" | "network" | "generic";
+    username?: string;
+    raw?: string;
+  } | null>(null);
   const [flyMode, setFlyMode] = useState(false);
   const [exploreMode, setExploreMode] = useState(false);
   const [themeIndex, setThemeIndex] = useState(0);
@@ -54,6 +186,7 @@ function HomeContent() {
     login: string;
     contributions: number;
     rank: number | null;
+    avatar_url: string | null;
   } | null>(null);
   const [copied, setCopied] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
@@ -106,7 +239,7 @@ function HomeContent() {
           setFocusedBuilding(null);
         } else if (!flyMode) {
           if (giftClaimed) setGiftClaimed(false);
-          else if (shareData) setShareData(null);
+          else if (shareData) { setShareData(null); setFocusedBuilding(null); }
           else if (selectedBuilding) { setSelectedBuilding(null); setFocusedBuilding(null); }
           else if (focusedBuilding) setFocusedBuilding(null);
           else if (exploreMode) { setExploreMode(false); setFocusedBuilding(savedFocusRef.current); savedFocusRef.current = null; }
@@ -117,19 +250,42 @@ function HomeContent() {
     return () => window.removeEventListener("keydown", onKey);
   }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed]);
 
-  const reloadCity = useCallback(async () => {
-    const res = await fetch("/api/city?from=0&to=500");
+  const reloadCity = useCallback(async (bustCache = false) => {
+    const cacheBust = bustCache ? `&_t=${Date.now()}` : "";
+    const res = await fetch(`/api/city?from=0&to=500${cacheBust}`);
     if (!res.ok) return null;
     const data = await res.json();
     setStats(data.stats);
-    if (data.developers.length > 0) {
-      const layout = generateCityLayout(data.developers);
-      setBuildings(layout.buildings);
-      setPlazas(layout.plazas);
-      setDecorations(layout.decorations);
-      return layout.buildings;
+    if (data.developers.length === 0) return null;
+
+    // Render downtown immediately
+    const layout = generateCityLayout(data.developers);
+    setBuildings(layout.buildings);
+    setPlazas(layout.plazas);
+    setDecorations(layout.decorations);
+
+    const total = data.stats?.total_developers ?? 0;
+    if (total <= 500) return layout.buildings;
+
+    // Background-fetch remaining developers in chunks
+    let allDevs = [...data.developers];
+    const CHUNK = 500;
+    for (let from = 500; from < total; from += CHUNK) {
+      const chunkRes = await fetch(
+        `/api/city?from=${from}&to=${from + CHUNK}${cacheBust}`
+      );
+      if (!chunkRes.ok) break;
+      const chunk = await chunkRes.json();
+      if (chunk.developers.length === 0) break;
+      allDevs = [...allDevs, ...chunk.developers];
     }
-    return null;
+
+    // Regenerate full layout with all developers
+    const fullLayout = generateCityLayout(allDevs);
+    setBuildings(fullLayout.buildings);
+    setPlazas(fullLayout.plazas);
+    setDecorations(fullLayout.decorations);
+    return fullLayout.buildings;
   }, []);
 
   // Load city from Supabase on mount
@@ -183,13 +339,22 @@ function HomeContent() {
     const trimmed = username.trim().toLowerCase();
     if (!trimmed) return;
 
+    // Check if this username already failed with a permanent error
+    const cachedError = failedUsernamesRef.current.get(trimmed);
+    if (cachedError) {
+      setFeedback({ type: "error", code: cachedError as any, username: trimmed });
+      return;
+    }
+
     setLoading(true);
-    setError(null);
+    setFeedback({ type: "loading" });
     setFocusedBuilding(null);
+    setSelectedBuilding(null);
+    setShareData(null);
 
     try {
-      // Check if dev already exists in the city
-      const isNew = !buildings.some(
+      // Check if dev already exists in the city before the fetch
+      const existedBefore = buildings.some(
         (b) => b.login.toLowerCase() === trimmed
       );
 
@@ -198,22 +363,37 @@ function HomeContent() {
       const devData = await devRes.json();
 
       if (!devRes.ok) {
-        setError(devData.error || "Failed to fetch");
+        let code: "not-found" | "org" | "no-activity" | "rate-limit" | "github-rate-limit" | "generic" = "generic";
+        if (devRes.status === 404) code = "not-found";
+        else if (devRes.status === 429) {
+          code = devData.error?.includes("GitHub") ? "github-rate-limit" : "rate-limit";
+        } else if (devRes.status === 400) {
+          if (devData.error?.includes("Organization")) code = "org";
+          else if (devData.error?.includes("no public activity")) code = "no-activity";
+        }
+        // Cache permanent errors so we don't re-fetch
+        if (PERMANENT_ERROR_CODES.has(code)) {
+          failedUsernamesRef.current.set(trimmed, code);
+        }
+        setFeedback({ type: "error", code, username: trimmed, raw: devData.error });
         return;
       }
 
-      // Reload entire city to get updated ranks
-      const updatedBuildings = await reloadCity();
+      setFeedback(null);
+
+      // Reload city with cache-bust so the new dev is included
+      const updatedBuildings = await reloadCity(true);
 
       // Focus camera on the searched building
       setFocusedBuilding(devData.github_login);
 
-      if (isNew) {
+      if (!existedBefore) {
         // New developer: show the share modal
         setShareData({
           login: devData.github_login,
           contributions: devData.contributions,
           rank: devData.rank,
+          avatar_url: devData.avatar_url,
         });
         setCopied(false);
       } else {
@@ -228,7 +408,7 @@ function HomeContent() {
       }
       setUsername("");
     } catch {
-      setError("Network error. Try again.");
+      setFeedback({ type: "error", code: "network", username: trimmed });
     } finally {
       setLoading(false);
     }
@@ -481,7 +661,10 @@ function HomeContent() {
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (feedback?.type === "error") setFeedback(null);
+                }}
                 placeholder="find yourself in the city"
                 className="min-w-0 flex-1 border-[3px] border-border bg-bg-raised px-3 py-2 text-xs text-cream outline-none transition-colors placeholder:text-dim sm:px-4 sm:py-2.5"
                 style={{ borderColor: undefined }}
@@ -497,13 +680,12 @@ function HomeContent() {
                   boxShadow: `4px 4px 0 0 ${theme.shadow}`,
                 }}
               >
-                {loading ? "..." : "Search"}
+                {loading ? <span className="blink-dot inline-block">_</span> : "Search"}
               </button>
             </form>
 
-            {error && (
-              <p className="text-[10px] text-red-400 normal-case">{error}</p>
-            )}
+            {/* Search Feedback: loading phases + errors */}
+            <SearchFeedback feedback={feedback} accentColor={theme.accent} onDismiss={() => setFeedback(null)} onRetry={searchUser} />
 
             {initialLoading && (
               <p className="text-[10px] text-muted normal-case">
@@ -761,7 +943,7 @@ function HomeContent() {
             {/* Header with avatar + name */}
             <div className="flex items-center gap-3 p-4 pb-3">
               {selectedBuilding.avatar_url && (
-                <img
+                <Image
                   src={selectedBuilding.avatar_url}
                   alt={selectedBuilding.login}
                   width={48}
@@ -839,20 +1021,34 @@ function HomeContent() {
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
-            onClick={() => setShareData(null)}
+            onClick={() => { setShareData(null); setFocusedBuilding(null); }}
           />
 
           {/* Modal */}
           <div className="relative mx-3 border-[3px] border-border bg-bg-raised p-4 text-center sm:mx-0 sm:p-6">
             {/* Close */}
             <button
-              onClick={() => setShareData(null)}
+              onClick={() => { setShareData(null); setFocusedBuilding(null); }}
               className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream"
             >
-              ESC
+              &#10005;
             </button>
 
-            <p className="text-xs text-cream">Building created!</p>
+            {/* Avatar */}
+            {shareData.avatar_url && (
+              <Image
+                src={shareData.avatar_url}
+                alt={shareData.login}
+                width={48}
+                height={48}
+                className="mx-auto mb-3 border-[2px] border-border"
+                style={{ imageRendering: "pixelated" }}
+              />
+            )}
+
+            <p className="text-xs text-cream normal-case">
+              <span style={{ color: theme.accent }}>@{shareData.login}</span> joined the city!
+            </p>
 
             <p className="mt-2 text-[10px] text-muted normal-case">
               Rank <span style={{ color: theme.accent }}>#{shareData.rank ?? "?"}</span>
@@ -862,19 +1058,29 @@ function HomeContent() {
 
             {/* Buttons */}
             <div className="mt-4 flex flex-col items-center gap-2 sm:mt-5 sm:flex-row sm:justify-center sm:gap-3">
-              <a
-                href={`https://x.com/intent/tweet?text=${encodeURIComponent(
-                  `My building in Git City by @samuelrizzondev: ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. Find yours →`
-                )}&url=${encodeURIComponent(
-                  `${window.location.origin}/dev/${shareData.login}`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => {
+                  setShareData(null);
+                  setExploreMode(true);
+                }}
                 className="btn-press px-4 py-2 text-[10px] text-bg"
                 style={{
                   backgroundColor: theme.accent,
                   boxShadow: `3px 3px 0 0 ${theme.shadow}`,
                 }}
+              >
+                Explore Building
+              </button>
+
+              <a
+                href={`https://x.com/intent/tweet?text=${encodeURIComponent(
+                  `Check out @${shareData.login}'s building in Git City by @samuelrizzondev: ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. Find yours →`
+                )}&url=${encodeURIComponent(
+                  `${window.location.origin}/dev/${shareData.login}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-press border-[3px] border-border px-4 py-2 text-[10px] text-cream transition-colors hover:border-border-light"
               >
                 Share on X
               </a>
@@ -949,8 +1155,8 @@ function HomeContent() {
               </p>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { emoji: "\uD83C\uDF3F", name: "Garden", price: "$0.50" },
-                  { emoji: "\u2728", name: "Neon", price: "$0.75" },
+                  { emoji: "\uD83C\uDF3F", name: "Garden", price: "$0.75" },
+                  { emoji: "\u2728", name: "Neon", price: "$1.00" },
                   { emoji: "\uD83D\uDD25", name: "Fire", price: "$1.00" },
                 ].map((item) => (
                   <Link

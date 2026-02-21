@@ -105,7 +105,6 @@ export default async function DevPage({ params }: Props) {
                 alt={dev.github_login}
                 width={100}
                 height={100}
-                unoptimized
                 className="border-[3px] border-border flex-shrink-0"
                 style={{ imageRendering: "pixelated" }}
               />

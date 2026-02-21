@@ -15,7 +15,6 @@ const ROUTE_LIMITS: [string, number, number][] = [
   ["/api/dev/", 60, 60_000],
   ["/api/items", 30, 60_000],
   ["/api/auth", 10, 60_000],
-  ["/api/leaderboard", 30, 60_000],
 ];
 
 const DEFAULT_API: [number, number] = [60, 60_000];
