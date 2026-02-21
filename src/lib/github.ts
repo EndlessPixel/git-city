@@ -110,10 +110,13 @@ const CELL_SPACING = 50; // spacing between buildings within a block
 // Spiral slots that become plazas instead of building blocks
 const PLAZA_SLOTS = new Set([3, 7, 12, 18, 25, 33, 42]);
 
+const MAX_BUILDING_HEIGHT = 800;
+
 function calcHeight(contributions: number, maxContrib: number): number {
-  // sqrt-based scaling: linear-visual spread from low to high contributors
-  const K = 300 / Math.sqrt(Math.max(1, maxContrib));
-  return 12 + Math.sqrt(contributions) * K;
+  // Cap reference so one outlier doesn't flatten the entire city
+  const effectiveMax = Math.min(maxContrib, 15_000);
+  const K = 300 / Math.sqrt(Math.max(1, effectiveMax));
+  return Math.min(MAX_BUILDING_HEIGHT, 12 + Math.sqrt(contributions) * K);
 }
 
 export function generateCityLayout(devs: DeveloperRecord[]): {

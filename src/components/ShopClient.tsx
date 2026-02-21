@@ -4,6 +4,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { ShopItem } from "@/lib/items";
 
+/** Must match FREE_CLAIM_ITEM in lib/items.ts */
+const FREE_CLAIM_ITEM = "flag";
+
 const ShopPreview = dynamic(() => import("./ShopPreview"), { ssr: false });
 
 export interface BuildingDims {
@@ -600,6 +603,36 @@ export default function ShopClient({
       });
   }, [billboardSlots]); // only run on mount / when slots change
 
+  const claimFreeItem = useCallback(async () => {
+    if (buyingItem) return;
+    setBuyingItem(FREE_CLAIM_ITEM);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/claim-free-item", { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          setOwned((prev) =>
+            prev.includes(FREE_CLAIM_ITEM) ? prev : [...prev, FREE_CLAIM_ITEM]
+          );
+        } else {
+          setError(data.error || "Failed to claim free item");
+        }
+        return;
+      }
+
+      setOwned((prev) =>
+        prev.includes(FREE_CLAIM_ITEM) ? prev : [...prev, FREE_CLAIM_ITEM]
+      );
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setBuyingItem(null);
+    }
+  }, [buyingItem]);
+
   const checkout = useCallback(
     async (itemId: string, provider: "stripe" | "abacatepay") => {
       if (buyingItem) return;
@@ -756,6 +789,7 @@ export default function ShopClient({
                       const isOwned = owned.includes(item.id);
                       const isBuying = buyingItem === item.id;
                       const isBillboard = item.id === "billboard";
+                      const isFreeItem = item.id === FREE_CLAIM_ITEM;
                       // Billboard can be bought multiple times
                       const showBuyButton = isBillboard || !isOwned;
 
@@ -798,46 +832,67 @@ export default function ShopClient({
                               )}
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="mr-1 text-sm text-muted">
-                                {formatPrice(item, isBrl)}
-                              </span>
-                              {!showBuyButton ? (
-                                <span className="w-14 text-center text-xs text-muted">
-                                  &#10003;
-                                </span>
-                              ) : isBrl && ENABLE_PIX ? (
+                              {isFreeItem && !isOwned ? (
                                 <>
+                                  <span className="mr-1 text-sm font-bold" style={{ color: ACCENT }}>
+                                    FREE
+                                  </span>
                                   <button
-                                    onClick={() => checkout(item.id, "abacatepay")}
+                                    onClick={claimFreeItem}
                                     disabled={isBuying || !!buyingItem}
-                                    className="btn-press px-3 py-1.5 text-xs text-bg disabled:opacity-40"
+                                    className="btn-press w-16 px-3 py-1.5 text-xs text-bg disabled:opacity-40"
                                     style={{
                                       backgroundColor: ACCENT,
                                       boxShadow: `2px 2px 0 0 ${SHADOW}`,
                                     }}
                                   >
-                                    {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 PIX" : "PIX"}
-                                  </button>
-                                  <button
-                                    onClick={() => checkout(item.id, "stripe")}
-                                    disabled={isBuying || !!buyingItem}
-                                    className="btn-press border-[2px] border-border px-3 py-1.5 text-xs text-cream transition-colors hover:border-border-light disabled:opacity-40"
-                                  >
-                                    {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 Card" : "Card"}
+                                    {isBuying ? "..." : "Claim"}
                                   </button>
                                 </>
                               ) : (
-                                <button
-                                  onClick={() => checkout(item.id, "stripe")}
-                                  disabled={isBuying || !!buyingItem}
-                                  className="btn-press w-16 px-3 py-1.5 text-xs text-bg disabled:opacity-40"
-                                  style={{
-                                    backgroundColor: ACCENT,
-                                    boxShadow: `2px 2px 0 0 ${SHADOW}`,
-                                  }}
-                                >
-                                  {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "Buy +1" : "Buy"}
-                                </button>
+                                <>
+                                  <span className="mr-1 text-sm text-muted">
+                                    {formatPrice(item, isBrl)}
+                                  </span>
+                                  {!showBuyButton ? (
+                                    <span className="w-14 text-center text-xs text-muted">
+                                      &#10003;
+                                    </span>
+                                  ) : isBrl && ENABLE_PIX ? (
+                                    <>
+                                      <button
+                                        onClick={() => checkout(item.id, "abacatepay")}
+                                        disabled={isBuying || !!buyingItem}
+                                        className="btn-press px-3 py-1.5 text-xs text-bg disabled:opacity-40"
+                                        style={{
+                                          backgroundColor: ACCENT,
+                                          boxShadow: `2px 2px 0 0 ${SHADOW}`,
+                                        }}
+                                      >
+                                        {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 PIX" : "PIX"}
+                                      </button>
+                                      <button
+                                        onClick={() => checkout(item.id, "stripe")}
+                                        disabled={isBuying || !!buyingItem}
+                                        className="btn-press border-[2px] border-border px-3 py-1.5 text-xs text-cream transition-colors hover:border-border-light disabled:opacity-40"
+                                      >
+                                        {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "+1 Card" : "Card"}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => checkout(item.id, "stripe")}
+                                      disabled={isBuying || !!buyingItem}
+                                      className="btn-press w-16 px-3 py-1.5 text-xs text-bg disabled:opacity-40"
+                                      style={{
+                                        backgroundColor: ACCENT,
+                                        boxShadow: `2px 2px 0 0 ${SHADOW}`,
+                                      }}
+                                    >
+                                      {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "Buy +1" : "Buy"}
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>

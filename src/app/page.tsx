@@ -244,6 +244,12 @@ function HomeContent() {
       ? `/shop/${myBuilding.login}`
       : "/shop";
 
+  // Show free gift CTA when user claimed but hasn't picked up the free item
+  const hasFreeGift =
+    !!session &&
+    !!myBuilding?.claimed &&
+    !myBuilding.owned_items.includes("flag");
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-bg font-pixel uppercase text-warm">
       {/* 3D Canvas */}
@@ -391,64 +397,7 @@ function HomeContent() {
         </div>
       )}
 
-      {/* ─── Shop (top-left, always visible) ─── */}
-      {!flyMode && !exploreMode && (
-        <div className="pointer-events-auto fixed top-3 left-3 z-30 sm:top-4 sm:left-4">
-          <Link
-            href={shopHref}
-            className="btn-press flex items-center gap-1.5 px-4 py-2 text-[10px] text-bg"
-            style={{
-              backgroundColor: theme.accent,
-              boxShadow: `2px 2px 0 0 ${theme.shadow}`,
-            }}
-          >
-            Shop
-          </Link>
-        </div>
-      )}
-
-      {/* ─── Auth (top-right) ─── */}
-      {!flyMode && !exploreMode && (
-        <div className="pointer-events-auto fixed top-3 right-3 z-30 flex flex-wrap items-center justify-end gap-1.5 sm:top-4 sm:right-4 sm:gap-2">
-          {!session ? (
-            <button
-              onClick={handleSignIn}
-              className="btn-press flex items-center gap-1.5 border-[3px] border-border bg-bg/80 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
-            >
-              <span style={{ color: theme.accent }}>G</span>
-              <span className="text-cream">Sign in</span>
-            </button>
-          ) : (
-            <>
-              {canClaim && (
-                <button
-                  onClick={handleClaim}
-                  disabled={claiming}
-                  className="btn-press px-3 py-1.5 text-[10px] text-bg disabled:opacity-40"
-                  style={{
-                    backgroundColor: theme.accent,
-                    boxShadow: `2px 2px 0 0 ${theme.shadow}`,
-                  }}
-                >
-                  {claiming ? "..." : "Claim"}
-                </button>
-              )}
-              <Link
-                href={`/dev/${authLogin}`}
-                className="text-[9px] text-cream normal-case transition-colors hover:text-accent"
-              >
-                @{authLogin}
-              </Link>
-              <button
-                onClick={handleSignOut}
-                className="border-[2px] border-border bg-bg/80 px-2 py-1 text-[9px] text-muted backdrop-blur-sm transition-colors hover:text-cream hover:border-border-light"
-              >
-                Sign Out
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {/* Shop & Auth moved to center buttons area */}
 
       {/* ─── Main UI Overlay ─── */}
       {!flyMode && !exploreMode && (
@@ -510,9 +459,10 @@ function HomeContent() {
             )}
           </div>
 
-          {/* Center - Explore buttons */}
+          {/* Center - Explore buttons + Shop + Auth */}
           {buildings.length > 0 && (
-            <div className="pointer-events-auto flex flex-col items-center gap-2">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
+              {/* Primary actions */}
               <div className="flex items-center gap-3 sm:gap-4">
                 <button
                   onClick={() => setExploreMode(true)}
@@ -537,10 +487,64 @@ function HomeContent() {
                   </button>
                 )}
               </div>
+
+              {/* Secondary actions: Shop + Auth */}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href={shopHref}
+                  className={`btn-press border-[3px] bg-bg/80 px-4 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light ${hasFreeGift ? "animate-pulse" : ""}`}
+                  style={{
+                    color: hasFreeGift ? "#0d0d0f" : theme.accent,
+                    backgroundColor: hasFreeGift ? theme.accent : undefined,
+                    borderColor: hasFreeGift ? theme.accent : undefined,
+                    boxShadow: hasFreeGift ? `3px 3px 0 0 ${theme.shadow}` : undefined,
+                  }}
+                >
+                  {hasFreeGift ? "1 Free Gift!" : "Shop"}
+                </Link>
+                {!session ? (
+                  <button
+                    onClick={handleSignIn}
+                    className="btn-press flex items-center gap-1.5 border-[3px] border-border bg-bg/80 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
+                  >
+                    <span style={{ color: theme.accent }}>G</span>
+                    <span className="text-cream">Sign in</span>
+                  </button>
+                ) : (
+                  <>
+                    {canClaim && (
+                      <button
+                        onClick={handleClaim}
+                        disabled={claiming}
+                        className="btn-press px-3 py-1.5 text-[10px] text-bg disabled:opacity-40"
+                        style={{
+                          backgroundColor: theme.accent,
+                          boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+                        }}
+                      >
+                        {claiming ? "..." : "Claim"}
+                      </button>
+                    )}
+                    <Link
+                      href={`/dev/${authLogin}`}
+                      className="border-[3px] border-border bg-bg/80 px-3 py-1.5 text-[10px] text-cream normal-case backdrop-blur-sm transition-colors hover:border-border-light"
+                    >
+                      @{authLogin}
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="border-[2px] border-border bg-bg/80 px-2 py-1 text-[9px] text-muted backdrop-blur-sm transition-colors hover:text-cream hover:border-border-light"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                )}
+              </div>
+
               {isMobile && (
                 <a
                   href="/leaderboard"
-                  className="btn-press mt-1 border-[3px] border-border bg-bg-raised px-5 py-2 text-[10px] backdrop-blur-sm"
+                  className="btn-press border-[3px] border-border bg-bg-raised px-5 py-2 text-[10px] backdrop-blur-sm"
                   style={{ color: theme.accent }}
                 >
                   &#9819; Leaderboard

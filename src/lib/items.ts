@@ -18,7 +18,7 @@ export interface PurchaseRecord {
   id: string;
   developer_id: number;
   item_id: string;
-  provider: "stripe" | "abacatepay";
+  provider: "stripe" | "abacatepay" | "free";
   provider_tx_id: string | null;
   amount_cents: number;
   currency: "usd" | "brl";
@@ -40,6 +40,43 @@ export async function getOwnedItems(developerId: number): Promise<string[]> {
     .eq("status", "completed");
 
   return (data ?? []).map((row) => row.item_id);
+}
+
+/** Item granted for free when a developer first claims their building. */
+export const FREE_CLAIM_ITEM = "flag";
+
+/**
+ * Grant the free claim item to a developer.
+ * No-ops if they already own it (idempotent).
+ * Returns true if the item was granted, false if already owned.
+ */
+export async function grantFreeClaimItem(
+  developerId: number
+): Promise<boolean> {
+  const sb = getSupabaseAdmin();
+
+  // Check if already owned
+  const { data: existing } = await sb
+    .from("purchases")
+    .select("id")
+    .eq("developer_id", developerId)
+    .eq("item_id", FREE_CLAIM_ITEM)
+    .eq("status", "completed")
+    .maybeSingle();
+
+  if (existing) return false;
+
+  await sb.from("purchases").insert({
+    developer_id: developerId,
+    item_id: FREE_CLAIM_ITEM,
+    provider: "free",
+    provider_tx_id: `free_claim_${developerId}`,
+    amount_cents: 0,
+    currency: "usd",
+    status: "completed",
+  });
+
+  return true;
 }
 
 export async function getOwnedItemsForDevelopers(
