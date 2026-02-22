@@ -8,6 +8,8 @@ import CityScene from "./CityScene";
 import type { FocusInfo } from "./CityScene";
 import type { CityBuilding, CityPlaza, CityDecoration, CityRiver, CityBridge } from "@/lib/github";
 import { seededRandom } from "@/lib/github";
+import SkyAds from "./SkyAds";
+import type { SkyAd } from "@/lib/skyAds";
 
 // ─── Theme Definitions ───────────────────────────────────────
 
@@ -45,6 +47,8 @@ interface CityTheme {
   groundColor: string;
   grid1: string;
   grid2: string;
+  roadMarkingColor: string;
+  sidewalkColor: string;
   building: BuildingColors;
   waterColor: string;
   waterEmissive: string;
@@ -59,12 +63,14 @@ const THEMES: CityTheme[] = [
       [0.46, "#a05068"], [0.52, "#d07060"], [0.57, "#e89060"], [0.62, "#f0b070"],
       [0.68, "#f0c888"], [0.75, "#c08060"], [0.85, "#603030"], [1, "#180c10"],
     ],
-    fogColor: "#80405a", fogNear: 400, fogFar: 3000,
-    ambientColor: "#e0a080", ambientIntensity: 0.35,
-    sunColor: "#f0b070", sunIntensity: 0.6, sunPos: [400, 50, -300],
-    fillColor: "#6050a0", fillIntensity: 0.1, fillPos: [-200, 80, 200],
-    hemiSky: "#a06060", hemiGround: "#100a0c", hemiIntensity: 0.25,
-    groundColor: "#1a1218", grid1: "#3a2030", grid2: "#28141e",
+    fogColor: "#80405a", fogNear: 500, fogFar: 3500,
+    ambientColor: "#e0a080", ambientIntensity: 0.5,
+    sunColor: "#f0b070", sunIntensity: 0.8, sunPos: [400, 120, -300],
+    fillColor: "#6050a0", fillIntensity: 0.2, fillPos: [-200, 80, 200],
+    hemiSky: "#c08070", hemiGround: "#3a2020", hemiIntensity: 0.4,
+    groundColor: "#3a3038", grid1: "#504048", grid2: "#443838",
+    roadMarkingColor: "#d0a840",
+    sidewalkColor: "#585058",
     building: {
       windowLit: ["#f8d880", "#f0b860", "#e89840", "#d07830", "#f0c060"],
       windowOff: "#1a1018", face: "#281828", roof: "#604050",
@@ -78,12 +84,14 @@ const THEMES: CityTheme[] = [
       [0, "#000206"], [0.15, "#020814"], [0.30, "#061428"], [0.45, "#0c2040"],
       [0.55, "#102850"], [0.65, "#0c2040"], [0.80, "#061020"], [1, "#020608"],
     ],
-    fogColor: "#0a1428", fogNear: 400, fogFar: 3000,
-    ambientColor: "#4060b0", ambientIntensity: 0.2,
-    sunColor: "#6080c0", sunIntensity: 0.3, sunPos: [300, 100, -200],
-    fillColor: "#304080", fillIntensity: 0.08, fillPos: [-200, 60, 200],
-    hemiSky: "#203060", hemiGround: "#060810", hemiIntensity: 0.15,
-    groundColor: "#0c1018", grid1: "#182030", grid2: "#101820",
+    fogColor: "#0a1428", fogNear: 500, fogFar: 3500,
+    ambientColor: "#4060b0", ambientIntensity: 0.35,
+    sunColor: "#6080c0", sunIntensity: 0.45, sunPos: [300, 120, -200],
+    fillColor: "#304080", fillIntensity: 0.15, fillPos: [-200, 60, 200],
+    hemiSky: "#406080", hemiGround: "#182028", hemiIntensity: 0.3,
+    groundColor: "#242c38", grid1: "#344050", grid2: "#2c3848",
+    roadMarkingColor: "#8090a0",
+    sidewalkColor: "#484c58",
     building: {
       windowLit: ["#a0c0f0", "#80a0e0", "#6080c8", "#c0d8f8", "#e0e8ff"],
       windowOff: "#0c0e18", face: "#101828", roof: "#2a3858",
@@ -98,12 +106,14 @@ const THEMES: CityTheme[] = [
       [0.52, "#500860"], [0.60, "#380648"], [0.75, "#180230"], [0.90, "#0c0118"],
       [1, "#06000c"],
     ],
-    fogColor: "#1a0830", fogNear: 400, fogFar: 3000,
-    ambientColor: "#8040c0", ambientIntensity: 0.3,
-    sunColor: "#c040e0", sunIntensity: 0.5, sunPos: [300, 80, -200],
-    fillColor: "#00c0d0", fillIntensity: 0.15, fillPos: [-250, 60, 200],
-    hemiSky: "#6020a0", hemiGround: "#080410", hemiIntensity: 0.2,
-    groundColor: "#100818", grid1: "#281848", grid2: "#1c1030",
+    fogColor: "#1a0830", fogNear: 500, fogFar: 3500,
+    ambientColor: "#8040c0", ambientIntensity: 0.45,
+    sunColor: "#c040e0", sunIntensity: 0.65, sunPos: [300, 100, -200],
+    fillColor: "#00c0d0", fillIntensity: 0.25, fillPos: [-250, 60, 200],
+    hemiSky: "#8030c0", hemiGround: "#180820", hemiIntensity: 0.35,
+    groundColor: "#2c2038", grid1: "#3c2c50", grid2: "#342440",
+    roadMarkingColor: "#c060e0",
+    sidewalkColor: "#484058",
     building: {
       windowLit: ["#ff40c0", "#c040ff", "#00e0ff", "#40ff80", "#ff8040"],
       windowOff: "#0a0814", face: "#180830", roof: "#3c1858",
@@ -118,12 +128,14 @@ const THEMES: CityTheme[] = [
       [0.52, "#004828"], [0.60, "#003820"], [0.75, "#002014"], [0.90, "#001008"],
       [1, "#000604"],
     ],
-    fogColor: "#0a2014", fogNear: 400, fogFar: 3000,
-    ambientColor: "#40a060", ambientIntensity: 0.25,
-    sunColor: "#60c080", sunIntensity: 0.4, sunPos: [300, 80, -250],
-    fillColor: "#20a080", fillIntensity: 0.1, fillPos: [-200, 60, 200],
-    hemiSky: "#208040", hemiGround: "#040c06", hemiIntensity: 0.2,
-    groundColor: "#081408", grid1: "#183020", grid2: "#102418",
+    fogColor: "#0a2014", fogNear: 500, fogFar: 3500,
+    ambientColor: "#40a060", ambientIntensity: 0.4,
+    sunColor: "#60c080", sunIntensity: 0.55, sunPos: [300, 100, -250],
+    fillColor: "#20a080", fillIntensity: 0.2, fillPos: [-200, 60, 200],
+    hemiSky: "#40a058", hemiGround: "#102818", hemiIntensity: 0.35,
+    groundColor: "#1e3020", grid1: "#2c4838", grid2: "#243828",
+    roadMarkingColor: "#60c080",
+    sidewalkColor: "#404848",
     building: {
       windowLit: ["#0e4429", "#006d32", "#26a641", "#39d353", "#c8e64a"],
       windowOff: "#060e08", face: "#0c1810", roof: "#1e4028",
@@ -632,11 +644,11 @@ function CameraReset() {
 function Ground({ color, grid1, grid2 }: { color: string; grid1: string; grid2: string }) {
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]}>
         <planeGeometry args={[20000, 20000]} />
-        <meshBasicMaterial color={color} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.15} roughness={0.95} />
       </mesh>
-      <gridHelper args={[4000, 240, grid1, grid2]} position={[0, 0.02, 0]} />
+      <gridHelper args={[4000, 200, grid1, grid2]} position={[0, -0.5, 0]} />
     </group>
   );
 }
@@ -751,11 +763,12 @@ function Fountain({ position }: { position: [number, number, number] }) {
 
 // ─── Sidewalk ─────────────────────────────────────────────────
 
-function Sidewalk({ position, size }: { position: [number, number, number]; size: [number, number] }) {
+function Sidewalk({ position, size, color }: { position: [number, number, number]; size: [number, number]; color?: string }) {
+  const c = color ?? "#585860";
   return (
     <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={size} />
-      <meshStandardMaterial color="#2a2a30" emissive="#2a2a30" emissiveIntensity={0.3} />
+      <meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.2} roughness={0.85} />
     </mesh>
   );
 }
@@ -788,10 +801,11 @@ const _dQuat = new THREE.Quaternion();
 const _dScale = new THREE.Vector3();
 const _dEuler = new THREE.Euler();
 
-function InstancedDecorations({ items }: { items: CityDecoration[] }) {
+function InstancedDecorations({ items, roadMarkingColor, sidewalkColor }: { items: CityDecoration[]; roadMarkingColor: string; sidewalkColor: string }) {
   const trees = useMemo(() => items.filter(d => d.type === 'tree'), [items]);
   const lamps = useMemo(() => items.filter(d => d.type === 'streetLamp'), [items]);
   const cars = useMemo(() => items.filter(d => d.type === 'car'), [items]);
+  const roadMarkings = useMemo(() => items.filter(d => d.type === 'roadMarking'), [items]);
 
   const treeTrunkRef = useRef<THREE.InstancedMesh>(null);
   const treeCanopyRef = useRef<THREE.InstancedMesh>(null);
@@ -799,6 +813,7 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
   const lampLightRef = useRef<THREE.InstancedMesh>(null);
   const carBodyRef = useRef<THREE.InstancedMesh>(null);
   const carCabinRef = useRef<THREE.InstancedMesh>(null);
+  const roadMarkingRef = useRef<THREE.InstancedMesh>(null);
 
   // Shared geometries
   const geos = useMemo(() => ({
@@ -808,6 +823,7 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
     lampLight: new THREE.BoxGeometry(1.5, 0.8, 1.5),
     carBody: new THREE.BoxGeometry(8, 2.5, 3.5),
     carCabin: new THREE.BoxGeometry(5, 2, 3.2),
+    roadMarking: new THREE.PlaneGeometry(1, 1),
   }), []);
 
   // Shared materials
@@ -820,7 +836,10 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
     }),
     carBody: new THREE.MeshStandardMaterial({ color: "#808080", emissive: "#808080", emissiveIntensity: 0.2 }),
     carCabin: new THREE.MeshStandardMaterial({ color: "#808080", emissive: "#808080", emissiveIntensity: 0.2 }),
-  }), []);
+    roadMarking: new THREE.MeshStandardMaterial({
+      color: roadMarkingColor, emissive: roadMarkingColor, emissiveIntensity: 0.8,
+    }),
+  }), [roadMarkingColor]);
 
   // Set up tree instances
   useEffect(() => {
@@ -903,6 +922,26 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
     if (carCabinRef.current.instanceColor) carCabinRef.current.instanceColor.needsUpdate = true;
   }, [cars]);
 
+  // Set up road marking instances
+  useEffect(() => {
+    if (!roadMarkingRef.current || roadMarkings.length === 0) return;
+
+    for (let i = 0; i < roadMarkings.length; i++) {
+      const d = roadMarkings[i];
+      const w = d.size?.[0] ?? 2;
+      const h = d.size?.[1] ?? 6;
+
+      _dEuler.set(-Math.PI / 2, d.rotation, 0);
+      _dQuat.setFromEuler(_dEuler);
+      _dPos.set(d.position[0], d.position[1], d.position[2]);
+      _dScale.set(w, h, 1);
+      _dMatrix.compose(_dPos, _dQuat, _dScale);
+      roadMarkingRef.current.setMatrixAt(i, _dMatrix);
+    }
+
+    roadMarkingRef.current.instanceMatrix.needsUpdate = true;
+  }, [roadMarkings]);
+
   // Dispose
   useEffect(() => {
     return () => {
@@ -931,6 +970,9 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
           <instancedMesh ref={carCabinRef} args={[geos.carCabin, mats.carCabin, cars.length]} />
         </>
       )}
+      {roadMarkings.length > 0 && (
+        <instancedMesh ref={roadMarkingRef} args={[geos.roadMarking, mats.roadMarking, roadMarkings.length]} />
+      )}
       {/* Benches, fountains, sidewalks: keep as individual components (usually few) */}
       {items.filter(d => d.type === 'bench').map((d, i) => (
         <ParkBench key={`bench-${i}`} position={d.position} rotation={d.rotation} />
@@ -939,7 +981,7 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
         <Fountain key={`fountain-${i}`} position={d.position} />
       ))}
       {items.filter(d => d.type === 'sidewalk').map((d, i) => (
-        <Sidewalk key={`walk-${i}`} position={d.position} size={d.size!} />
+        <Sidewalk key={`walk-${i}`} position={d.position} size={d.size!} color={sidewalkColor} />
       ))}
     </>
   );
@@ -1154,23 +1196,34 @@ interface Props {
   onFocusInfo?: (info: FocusInfo) => void;
   flyPauseSignal?: number;
   flyHasOverlay?: boolean;
+  skyAds?: SkyAd[];
+  onAdClick?: (ad: SkyAd) => void;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, skyAds, onAdClick }: Props) {
   const t = THEMES[themeIndex] ?? THEMES[0];
+
+  const cityRadius = useMemo(() => {
+    let max = 200;
+    for (const b of buildings) {
+      const d = Math.sqrt(b.position[0] ** 2 + b.position[2] ** 2);
+      if (d > max) max = d;
+    }
+    return max;
+  }, [buildings]);
 
   return (
     <Canvas
       camera={{ position: [400, 350, 500], fov: 55, near: 0.5, far: 4000 }}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      gl={{ antialias: true, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.3 }}
       style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}
     >
       <fog attach="fog" args={[t.fogColor, t.fogNear, t.fogFar]} key={`fog-${themeIndex}`} />
 
-      <ambientLight intensity={t.ambientIntensity * 2} color={t.ambientColor} />
-      <directionalLight position={t.sunPos} intensity={t.sunIntensity * 2.5} color={t.sunColor} />
-      <directionalLight position={t.fillPos} intensity={t.fillIntensity * 2} color={t.fillColor} />
-      <hemisphereLight args={[t.hemiSky, t.hemiGround, t.hemiIntensity * 2.5]} key={`hemi-${themeIndex}`} />
+      <ambientLight intensity={t.ambientIntensity * 3} color={t.ambientColor} />
+      <directionalLight position={t.sunPos} intensity={t.sunIntensity * 3.5} color={t.sunColor} />
+      <directionalLight position={t.fillPos} intensity={t.fillIntensity * 3} color={t.fillColor} />
+      <hemisphereLight args={[t.hemiSky, t.hemiGround, t.hemiIntensity * 3.5]} key={`hemi-${themeIndex}`} />
 
       <SkyDome key={`sky-${themeIndex}`} stops={t.sky} />
 
@@ -1203,7 +1256,11 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
         onFocusInfo={onFocusInfo}
       />
 
-      <InstancedDecorations items={decorations} />
+      <InstancedDecorations items={decorations} roadMarkingColor={t.roadMarkingColor} sidewalkColor={t.sidewalkColor} />
+
+      {skyAds && skyAds.length > 0 && (
+        <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={onAdClick} />
+      )}
     </Canvas>
   );
 }

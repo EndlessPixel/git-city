@@ -17,7 +17,9 @@ import Image from "next/image";
 import Link from "next/link";
 import ActivityTicker, { type FeedEvent } from "@/components/ActivityTicker";
 import ActivityPanel from "@/components/ActivityPanel";
+import LofiRadio from "@/components/LofiRadio";
 import { ITEM_NAMES, ITEM_EMOJIS } from "@/lib/zones";
+import { DEFAULT_SKY_ADS } from "@/lib/skyAds";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -351,6 +353,7 @@ function HomeContent() {
   const [giftBuying, setGiftBuying] = useState<string | null>(null);
   const [compareCopied, setCompareCopied] = useState(false);
   const [compareLang, setCompareLang] = useState<"en" | "pt">("en");
+  const [clickedAd, setClickedAd] = useState<import("@/lib/skyAds").SkyAd | null>(null);
 
   // Derived — second focused building for dual-focus camera
   const focusedBuildingB = comparePair ? comparePair[1].login : null;
@@ -860,6 +863,8 @@ function HomeContent() {
         onClearFocus={() => setFocusedBuilding(null)}
         flyPauseSignal={flyPauseSignal}
         flyHasOverlay={!!selectedBuilding}
+        skyAds={DEFAULT_SKY_ADS}
+        onAdClick={(ad) => setClickedAd(ad)}
         onFocusInfo={() => {}}
         onBuildingClick={(b) => {
           // Compare pick mode: clicking a second building completes the pair
@@ -1929,6 +1934,83 @@ function HomeContent() {
           </div>
         </div>
       )}
+
+      {/* ─── Sky Ad Card ─── */}
+      {clickedAd && (
+        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setClickedAd(null)}>
+          {/* Desktop: centered card. Mobile: bottom sheet */}
+          <div className="pointer-events-none flex h-full items-end sm:items-center sm:justify-center">
+            <div
+              className="pointer-events-auto relative w-full border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
+                sm:w-[340px] sm:mx-4 sm:border-[3px]
+                animate-[slide-up_0.2s_ease-out] sm:animate-[fade-in_0.15s_ease-out]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close */}
+              <button
+                onClick={() => setClickedAd(null)}
+                className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream z-10 cursor-pointer"
+              >
+                ESC
+              </button>
+
+              {/* Drag handle on mobile */}
+              <div className="flex justify-center py-2 sm:hidden">
+                <div className="h-1 w-10 rounded-full bg-border" />
+              </div>
+
+              {/* Header: brand + sponsored tag */}
+              <div className="flex items-center gap-3 px-4 pb-3 sm:pt-4">
+                <div
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center border-[2px]"
+                  style={{ borderColor: clickedAd.color, color: clickedAd.color }}
+                >
+                  <span className="text-sm">{clickedAd.vehicle === "blimp" ? "\u25C6" : "\u2708"}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  {clickedAd.brand && (
+                    <p className="truncate text-sm text-cream">{clickedAd.brand}</p>
+                  )}
+                  <p className="text-[9px] text-dim">Sponsored</p>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="mx-4 mb-3 h-px bg-border" />
+
+              {/* Description */}
+              {clickedAd.description && (
+                <p className="mx-4 mb-4 text-xs text-cream normal-case leading-relaxed">
+                  {clickedAd.description}
+                </p>
+              )}
+
+              {/* CTA */}
+              {clickedAd.link && (
+                <div className="px-4 pb-5 sm:pb-4">
+                  <a
+                    href={clickedAd.link}
+                    target={clickedAd.link.startsWith("mailto:") ? undefined : "_blank"}
+                    rel={clickedAd.link.startsWith("mailto:") ? undefined : "noopener noreferrer"}
+                    className="btn-press block w-full py-2.5 text-center text-[10px] text-bg"
+                    style={{
+                      backgroundColor: theme.accent,
+                      boxShadow: `4px 4px 0 0 ${theme.shadow}`,
+                    }}
+                  >
+                    {clickedAd.link.startsWith("mailto:")
+                      ? "Send Email \u2192"
+                      : `Visit ${new URL(clickedAd.link).hostname.replace("www.", "")} \u2192`}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Lo-fi Radio ─── */}
+      <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
 
       {/* ─── Activity Ticker ─── */}
       {!flyMode && feedEvents.length >= 3 && (

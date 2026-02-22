@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { createServerSupabase } from "@/lib/supabase-server";
 
-export const revalidate = 600; // ISR: regenerate every 10 minutes
+export const dynamic = "force-dynamic"; // needs auth session per request
 
 export const metadata: Metadata = {
   title: "Leaderboard - Git City",
@@ -50,7 +51,16 @@ export default async function LeaderboardPage({
 }) {
   const params = await searchParams;
   const activeTab = (params.tab ?? "contributors") as TabId;
-  const currentUser = params.user?.toLowerCase();
+
+  // Auto-detect logged-in user, fallback to ?user= param
+  const authSupabase = await createServerSupabase();
+  const { data: { user: authUser } } = await authSupabase.auth.getUser();
+  const authLogin = (
+    authUser?.user_metadata?.user_name ??
+    authUser?.user_metadata?.preferred_username ??
+    ""
+  ).toLowerCase();
+  const currentUser = params.user?.toLowerCase() || authLogin || undefined;
 
   const supabase = getSupabaseAdmin();
 
@@ -203,7 +213,7 @@ export default async function LeaderboardPage({
           {TABS.filter((t) => t.id !== "recruiters" || hasRecruiters).map((tab) => (
             <Link
               key={tab.id}
-              href={`/leaderboard?tab=${tab.id}${currentUser ? `&user=${currentUser}` : ""}`}
+              href={`/leaderboard?tab=${tab.id}`}
               className="px-3 py-1.5 text-[10px] transition-colors border-[2px]"
               style={{
                 borderColor: activeTab === tab.id ? ACCENT : "var(--color-border)",

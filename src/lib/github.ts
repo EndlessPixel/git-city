@@ -64,7 +64,7 @@ export interface CityPlaza {
 }
 
 export interface CityDecoration {
-  type: 'tree' | 'streetLamp' | 'car' | 'bench' | 'fountain' | 'sidewalk';
+  type: 'tree' | 'streetLamp' | 'car' | 'bench' | 'fountain' | 'sidewalk' | 'roadMarking';
   position: [number, number, number];
   rotation: number;
   variant: number;
@@ -106,13 +106,13 @@ function spiralCoord(index: number): [number, number] {
 const BLOCK_SIZE_DOWNTOWN = 3; // 3x3 grid inside block
 const BLOCK_SIZE_SUBURB = 2; // 2x2 grid
 const DOWNTOWN_RANK_LIMIT = 500;
-const STREET_WIDTH = 15;
-const AVENUE_WIDTH = 25;
-const AVENUE_INTERVAL = 3; // avenue every 3 blocks
+const STREET_WIDTH = 45;
+const AVENUE_WIDTH = 80;
+const AVENUE_INTERVAL = 4; // avenue every 4 blocks
 const CELL_SPACING = 50; // spacing between buildings within a block
 
 // Spiral slots that become plazas instead of building blocks
-const PLAZA_SLOTS = new Set([3, 7, 12, 18, 25, 33, 42]);
+const PLAZA_SLOTS = new Set([3, 7, 12, 18, 25, 33, 42, 52, 63, 75, 88, 102]);
 
 const MAX_BUILDING_HEIGHT = 600;
 const MIN_BUILDING_HEIGHT = 10;
@@ -181,6 +181,9 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
   let devIndex = 0;
   let spiralIndex = 0;
 
+  // Track block positions for road marking generation
+  const blockCenters: { cx: number; cz: number; footprint: number; bx: number; by: number }[] = [];
+
   while (devIndex < devs.length) {
     const isDowntown = devIndex < DOWNTOWN_RANK_LIMIT;
     const blockSize = isDowntown ? BLOCK_SIZE_DOWNTOWN : BLOCK_SIZE_SUBURB;
@@ -236,9 +239,9 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       // Width/depth: base from repos, variance from seed
       const seed1 = hashStr(dev.github_login);
       const repoFactor = Math.min(1, dev.public_repos / 100); // 0-1 based on repos
-      const baseW = 14 + repoFactor * 16; // 14-30 based on repos
-      const w = Math.round(baseW + seededRandom(seed1) * 10);
-      const d = Math.round(12 + seededRandom(seed1 + 99) * 20); // 12-32, independent of w
+      const baseW = 14 + repoFactor * 12; // 14-26 based on repos
+      const w = Math.round(baseW + seededRandom(seed1) * 8);
+      const d = Math.round(12 + seededRandom(seed1 + 99) * 16); // 12-28, independent of w
 
       const floorH = 6;
       const floors = Math.max(3, Math.floor(height / floorH));
@@ -287,7 +290,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
     if (!blockInRiver) {
       decorations.push({
         type: 'sidewalk',
-        position: [blockCenterX, 0.05, blockCenterZ],
+        position: [blockCenterX, 0.1, blockCenterZ],
         rotation: 0,
         variant: 0,
         size: [blockFootprint + 8, blockFootprint + 8],
@@ -354,8 +357,69 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       });
     }
 
+    blockCenters.push({ cx: blockCenterX, cz: blockCenterZ, footprint: blockFootprint, bx, by });
+
     devIndex += blockDevs.length;
     spiralIndex++;
+  }
+
+  // ── Road markings (dashed center lines between blocks) ──
+  const DASH_LENGTH = 6;
+  const DASH_GAP = 8;
+  const DASH_STEP = DASH_LENGTH + DASH_GAP;
+
+  // Build a lookup of block positions by grid coordinate
+  const blockByGrid = new Map<string, typeof blockCenters[0]>();
+  for (const b of blockCenters) {
+    blockByGrid.set(`${b.bx},${b.by}`, b);
+  }
+
+  // For each block, generate road markings on the right (+X) and bottom (+Z) edges
+  for (const block of blockCenters) {
+    const halfFoot = block.footprint / 2;
+
+    // Right road (vertical dashes along Z axis) — between this block and the one to the right
+    const rightNeighborKey = `${block.bx + 1},${block.by}`;
+    const rightNeighbor = blockByGrid.get(rightNeighborKey);
+    if (rightNeighbor) {
+      const roadCenterX = (block.cx + halfFoot + rightNeighbor.cx - rightNeighbor.footprint / 2) / 2;
+      const roadMinZ = Math.min(block.cz, rightNeighbor.cz) - Math.max(halfFoot, rightNeighbor.footprint / 2);
+      const roadMaxZ = Math.max(block.cz, rightNeighbor.cz) + Math.max(halfFoot, rightNeighbor.footprint / 2);
+
+      // Skip if road crosses river
+      if (!(roadCenterX + 2 > riverMinX && roadCenterX - 2 < riverMaxX)) {
+        for (let z = roadMinZ; z <= roadMaxZ; z += DASH_STEP) {
+          decorations.push({
+            type: 'roadMarking',
+            position: [roadCenterX, 0.2, z],
+            rotation: 0,
+            variant: 0,
+            size: [2, DASH_LENGTH],
+          });
+        }
+      }
+    }
+
+    // Bottom road (horizontal dashes along X axis) — between this block and the one below
+    const bottomNeighborKey = `${block.bx},${block.by + 1}`;
+    const bottomNeighbor = blockByGrid.get(bottomNeighborKey);
+    if (bottomNeighbor) {
+      const roadCenterZ = (block.cz + halfFoot + bottomNeighbor.cz - bottomNeighbor.footprint / 2) / 2;
+      const roadMinX = Math.min(block.cx, bottomNeighbor.cx) - Math.max(halfFoot, bottomNeighbor.footprint / 2);
+      const roadMaxX = Math.max(block.cx, bottomNeighbor.cx) + Math.max(halfFoot, bottomNeighbor.footprint / 2);
+
+      for (let x = roadMinX; x <= roadMaxX; x += DASH_STEP) {
+        // Skip if dash crosses river
+        if (x + 2 > riverMinX && x - 2 < riverMaxX) continue;
+        decorations.push({
+          type: 'roadMarking',
+          position: [x, 0.2, roadCenterZ],
+          rotation: Math.PI / 2,
+          variant: 0,
+          size: [2, DASH_LENGTH],
+        });
+      }
+    }
   }
 
   // ── Plaza decorations ──
