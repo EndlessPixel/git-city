@@ -54,6 +54,45 @@ const ACHIEVEMENT_NAMES_MAP: Record<string, string> = {
   legendary: "Legendary", admired: "Admired", appreciated: "Appreciated",
 };
 
+// Dev "class" — funny RPG-style title, deterministic per username
+const DEV_CLASSES = [
+  "Vibe Coder",
+  "Stack Overflow Tourist",
+  "Console.log Debugger",
+  "Ctrl+C Ctrl+V Engineer",
+  "Senior Googler",
+  "Git Push --force Enjoyer",
+  "Dark Mode Purist",
+  "Rubber Duck Whisperer",
+  "Merge Conflict Magnet",
+  "README Skipper",
+  "npm install Addict",
+  "Localhost Champion",
+  "Monday Deployer",
+  "Production Debugger",
+  "Legacy Code Archaeologist",
+  "Off-By-One Specialist",
+  "Commit Message Poet",
+  "Tab Supremacist",
+  "Docker Compose Therapist",
+  "10x Dev (Self-Proclaimed)",
+  "AI Prompt Jockey",
+  "Semicolon Forgetter",
+  "CSS Trial-and-Error Main",
+  "Works On My Machine Dev",
+  "TODO: Fix Later Dev",
+  "Infinite Loop Survivor",
+  "PR Approved (Didn't Read)",
+  "LGTM Speed Runner",
+  "404 Brain Not Found",
+  "Sudo Make Me A Sandwich",
+];
+function getDevClass(login: string) {
+  let h = 0;
+  for (let i = 0; i < login.length; i++) h = ((h << 5) - h + login.charCodeAt(i)) | 0;
+  return DEV_CLASSES[((h % DEV_CLASSES.length) + DEV_CLASSES.length) % DEV_CLASSES.length];
+}
+
 interface CityStats {
   total_developers: number;
   total_contributions: number;
@@ -1605,7 +1644,7 @@ function HomeContent() {
               </div>
 
               {/* ── Header: Avatars + VS ── */}
-              <div className="flex items-center justify-center gap-5 px-5 pt-1 pb-4 sm:pt-4">
+              <div className="flex items-start justify-center gap-5 px-5 pt-1 pb-4 sm:pt-4">
                 <Link href={`/dev/${comparePair[0].login}`} className="flex flex-col items-center gap-1.5 group w-[110px]">
                   {comparePair[0].avatar_url && (
                     <Image
@@ -1621,9 +1660,10 @@ function HomeContent() {
                     />
                   )}
                   <p className="truncate text-[10px] text-cream normal-case max-w-[110px] transition-colors group-hover:text-white">@{comparePair[0].login}</p>
+                  <p className="text-[8px] text-muted normal-case text-center">{getDevClass(comparePair[0].login)}</p>
                 </Link>
 
-                <span className="text-base shrink-0" style={{ color: theme.accent }}>VS</span>
+                <span className="text-base shrink-0 pt-4" style={{ color: theme.accent }}>VS</span>
 
                 <Link href={`/dev/${comparePair[1].login}`} className="flex flex-col items-center gap-1.5 group w-[110px]">
                   {comparePair[1].avatar_url && (
@@ -1640,6 +1680,7 @@ function HomeContent() {
                     />
                   )}
                   <p className="truncate text-[10px] text-cream normal-case max-w-[110px] transition-colors group-hover:text-white">@{comparePair[1].login}</p>
+                  <p className="text-[8px] text-muted normal-case text-center">{getDevClass(comparePair[1].login)}</p>
                 </Link>
               </div>
 
@@ -1667,16 +1708,6 @@ function HomeContent() {
                     </span>
                   </div>
                 ))}
-                {/* Language row */}
-                <div className="flex items-center py-2 px-3 border-t border-border/40">
-                  <span className="w-[72px] text-right text-[10px]" style={{ color: theme.accent }}>
-                    {comparePair[0].primary_language ?? "—"}
-                  </span>
-                  <span className="flex-1 text-center text-[8px] text-muted uppercase tracking-wider">Lang</span>
-                  <span className="w-[72px] text-left text-[10px]" style={{ color: theme.accent }}>
-                    {comparePair[1].primary_language ?? "—"}
-                  </span>
-                </div>
               </div>
 
               {/* ── Winner banner ── */}
@@ -1695,7 +1726,7 @@ function HomeContent() {
               <div className="px-4 pt-3 pb-1 flex gap-2">
                 <a
                   href={`https://x.com/intent/tweet?text=${encodeURIComponent(
-                    `@${comparePair[0].login} vs @${comparePair[1].login} in Git City by @samuelrizzondev — who has the better building?`
+                    `I just compared my building with ${comparePair[1].login}'s in Git City. It wasn't even close. What's yours?`
                   )}&url=${encodeURIComponent(
                     `${typeof window !== "undefined" ? window.location.origin : ""}/compare/${comparePair[0].login}/${comparePair[1].login}`
                   )}`}
@@ -1863,7 +1894,7 @@ function HomeContent() {
 
               <a
                 href={`https://x.com/intent/tweet?text=${encodeURIComponent(
-                  `Check out @${shareData.login}'s building in Git City by @samuelrizzondev: ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. Find yours →`
+                  `My GitHub just turned into a building. ${shareData.contributions.toLocaleString()} contributions, Rank #${shareData.rank ?? "?"}. What does yours look like?`
                 )}&url=${encodeURIComponent(
                   `${window.location.origin}/dev/${shareData.login}`
                 )}`}

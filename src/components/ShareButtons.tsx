@@ -30,7 +30,7 @@ export default function ShareButtons({
       ? `${window.location.origin}/dev/${login}`
       : `/dev/${login}`;
 
-  const tweetText = `I'm #${rank ?? "?"} in Git City with ${contributions.toLocaleString()} contributions. Can you beat me?`;
+  const tweetText = `My GitHub just turned into a building. ${contributions.toLocaleString()} contributions, Rank #${rank ?? "?"}. What does yours look like?`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(profileUrl);
