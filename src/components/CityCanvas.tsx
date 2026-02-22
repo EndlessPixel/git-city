@@ -250,9 +250,15 @@ function CameraFocus({
       const dx = bB.position[0] - bA.position[0];
       const dz = bB.position[2] - bA.position[2];
       const separation = Math.sqrt(dx * dx + dz * dz);
-      const backoff = Math.max(400, separation * 2.2);
 
-      // Camera perpendicular to the A→B line so buildings land on opposite screen sides
+      // On mobile, compensate for the bottom sheet covering ~45vh
+      const isMobile = window.innerWidth < 640;
+      const backoff = isMobile
+        ? Math.max(500, separation * 2.8)
+        : Math.max(400, separation * 2.2);
+      const lookYOffset = isMobile ? 35 : 0;
+
+      // Camera perpendicular to the A->B line so buildings land on opposite screen sides
       // When buildings are very close, use a default direction instead of unstable perpendicular
       let perpX: number, perpZ: number;
       if (separation < 5) {
@@ -263,10 +269,10 @@ function CameraFocus({
         perpZ = dx / separation;
       }
 
-      endLook.current.set(midX, midY, midZ);
+      endLook.current.set(midX, midY + lookYOffset, midZ);
       endPos.current.set(
         midX + perpX * backoff,
-        midY + backoff * 0.45,
+        midY + lookYOffset + backoff * 0.45,
         midZ + perpZ * backoff
       );
     } else {
@@ -1198,9 +1204,10 @@ interface Props {
   flyHasOverlay?: boolean;
   skyAds?: SkyAd[];
   onAdClick?: (ad: SkyAd) => void;
+  onAdViewed?: (adId: string) => void;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, skyAds, onAdClick }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, skyAds, onAdClick, onAdViewed }: Props) {
   const t = THEMES[themeIndex] ?? THEMES[0];
 
   const cityRadius = useMemo(() => {
@@ -1259,7 +1266,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       <InstancedDecorations items={decorations} roadMarkingColor={t.roadMarkingColor} sidewalkColor={t.sidewalkColor} />
 
       {skyAds && skyAds.length > 0 && (
-        <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={onAdClick} />
+        <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={onAdClick} onAdViewed={onAdViewed} />
       )}
     </Canvas>
   );

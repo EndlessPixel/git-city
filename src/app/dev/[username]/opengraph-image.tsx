@@ -25,7 +25,7 @@ export default async function Image({
 
   const { data: dev } = await supabase
     .from("developers")
-    .select("github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count")
+    .select("github_login, name, avatar_url, contributions, contributions_total, public_repos, total_stars, rank, kudos_count")
     .eq("github_login", username.toLowerCase())
     .single();
 
@@ -99,12 +99,15 @@ export default async function Image({
     return rows;
   }
 
+  // Effective contributions (matches rank calculation)
+  const contribs = (dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions;
+
   // Building height — tall and dominant, scales with contributions
-  const buildingH = Math.round(Math.min(480, Math.max(320, 320 + (dev.contributions / 1000) * 160)));
+  const buildingH = Math.round(Math.min(480, Math.max(320, 320 + (contribs / 1000) * 160)));
   const GROUND_Y = 550;
 
   const stats = [
-    { label: "CONTRIBS", value: dev.contributions.toLocaleString() },
+    { label: "CONTRIBS", value: contribs.toLocaleString() },
     { label: "REPOS", value: dev.public_repos.toLocaleString() },
     { label: "STARS", value: dev.total_stars.toLocaleString() },
     { label: "KUDOS", value: (dev.kudos_count ?? 0).toLocaleString() },

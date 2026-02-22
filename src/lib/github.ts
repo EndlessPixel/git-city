@@ -326,6 +326,13 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       continue; // skip this slot, don't consume devs
     }
 
+    // Skip entire block if it overlaps the river (don't consume devs)
+    const blockHalf = CELL_SPACING * blockSize / 2 + 20;
+    if (blockCenterX + blockHalf > riverMinX && blockCenterX - blockHalf < riverMaxX) {
+      spiralIndex++;
+      continue;
+    }
+
     const devsPerBlock = blockSize * blockSize;
     const blockDevs = devs.slice(devIndex, devIndex + devsPerBlock);
 
@@ -339,9 +346,6 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
 
       const posX = blockCenterX + offsetX;
       const posZ = blockCenterZ + offsetZ;
-
-      // Skip buildings that overlap the river
-      if (posX + 20 > riverMinX && posX - 20 < riverMaxX) continue;
 
       let height: number, composite: number, w: number, d: number, litPercentage: number;
 
@@ -370,7 +374,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       buildings.push({
         login: dev.github_login,
         rank: dev.rank ?? devIndex + i + 1,
-        contributions: dev.contributions,
+        contributions: (dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions,
         total_stars: dev.total_stars,
         public_repos: dev.public_repos,
         name: dev.name,

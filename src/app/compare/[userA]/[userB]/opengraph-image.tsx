@@ -33,12 +33,12 @@ export default async function Image({
   const [{ data: devA }, { data: devB }] = await Promise.all([
     supabase
       .from("developers")
-      .select("github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count")
+      .select("github_login, name, avatar_url, contributions, contributions_total, public_repos, total_stars, rank, kudos_count")
       .eq("github_login", userA.toLowerCase())
       .single(),
     supabase
       .from("developers")
-      .select("github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count")
+      .select("github_login, name, avatar_url, contributions, contributions_total, public_repos, total_stars, rank, kudos_count")
       .eq("github_login", userB.toLowerCase())
       .single(),
   ]);
@@ -72,6 +72,10 @@ export default async function Image({
     );
   }
 
+  // Effective contributions (matches rank calculation)
+  const contribsA = (devA.contributions_total && devA.contributions_total > 0) ? devA.contributions_total : devA.contributions;
+  const contribsB = (devB.contributions_total && devB.contributions_total > 0) ? devB.contributions_total : devB.contributions;
+
   // Stats comparison
   const statDefs = [
     { label: "RANK", key: "rank" as const, invert: true },
@@ -81,11 +85,15 @@ export default async function Image({
     { label: "KUDOS", key: "kudos_count" as const, invert: false },
   ];
 
+  // Override contributions with effective values for comparison
+  const devAEff = { ...devA, contributions: contribsA };
+  const devBEff = { ...devB, contributions: contribsB };
+
   let aWinsCount = 0;
   let bWinsCount = 0;
   const statRows = statDefs.map((s) => {
-    const a: number = (devA as Record<string, number>)[s.key] ?? 0;
-    const b: number = (devB as Record<string, number>)[s.key] ?? 0;
+    const a: number = (devAEff as Record<string, number>)[s.key] ?? 0;
+    const b: number = (devBEff as Record<string, number>)[s.key] ?? 0;
     let aWin = false;
     let bWin = false;
     if (s.invert) {
@@ -112,11 +120,11 @@ export default async function Image({
   const bColor = bIsWinner || isTie ? accent : muted;
 
   // Building heights proportional to contributions
-  const maxContrib = Math.max(devA.contributions, devB.contributions, 1);
+  const maxContrib = Math.max(contribsA, contribsB, 1);
   const MIN_H = 200;
   const MAX_H = 400;
-  const heightA = Math.round(MIN_H + (devA.contributions / maxContrib) * (MAX_H - MIN_H));
-  const heightB = Math.round(MIN_H + (devB.contributions / maxContrib) * (MAX_H - MIN_H));
+  const heightA = Math.round(MIN_H + (contribsA / maxContrib) * (MAX_H - MIN_H));
+  const heightB = Math.round(MIN_H + (contribsB / maxContrib) * (MAX_H - MIN_H));
   const GROUND_Y = 520;
 
   // Building window generator
@@ -317,7 +325,7 @@ export default async function Image({
                   color: s.aWin ? accent : muted,
                 }}
               >
-                {s.isRank ? `#${s.a}` : s.a.toLocaleString()}
+                {s.isRank ? (s.a > 0 ? `#${s.a}` : "-") : s.a.toLocaleString()}
               </div>
               <div
                 style={{
@@ -338,7 +346,7 @@ export default async function Image({
                   color: s.bWin ? accent : muted,
                 }}
               >
-                {s.isRank ? `#${s.b}` : s.b.toLocaleString()}
+                {s.isRank ? (s.b > 0 ? `#${s.b}` : "-") : s.b.toLocaleString()}
               </div>
             </div>
           ))}

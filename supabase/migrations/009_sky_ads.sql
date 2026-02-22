@@ -50,8 +50,8 @@ alter table sky_ad_events enable row level security;
 create policy "Public can read active ads"
   on sky_ads for select using (active = true and (starts_at is null or starts_at <= now()) and (ends_at is null or ends_at > now()));
 
-create policy "Service role inserts events"
-  on sky_ad_events for insert with check (true);
+-- No policies on sky_ad_events: RLS blocks all anon/authenticated access.
+-- Only service role (used by our API routes) can insert/read, bypassing RLS.
 
 -- Helper function to refresh the materialized view (called from API)
 create or replace function refresh_sky_ad_stats()

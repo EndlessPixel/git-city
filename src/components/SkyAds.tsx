@@ -85,6 +85,7 @@ function BannerPlane({
   cityRadius,
   flyMode,
   onAdClick,
+  meshRef,
 }: {
   ad: SkyAd;
   index: number;
@@ -92,6 +93,7 @@ function BannerPlane({
   cityRadius: number;
   flyMode: boolean;
   onAdClick?: (ad: SkyAd) => void;
+  meshRef?: React.Ref<THREE.Mesh>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const { scene } = useGLTF("/models/paper-plane.glb");
@@ -206,6 +208,7 @@ function BannerPlane({
 
       {/* LED banner — side 1 (faces +X) */}
       <mesh
+        ref={meshRef}
         material={ledMat}
         position={[0.15, bannerY, bannerZ]}
         rotation={[0, Math.PI / 2, 0]}
@@ -243,6 +246,7 @@ function Blimp({
   cityRadius,
   flyMode,
   onAdClick,
+  screenRef,
 }: {
   ad: SkyAd;
   index: number;
@@ -250,6 +254,7 @@ function Blimp({
   cityRadius: number;
   flyMode: boolean;
   onAdClick?: (ad: SkyAd) => void;
+  screenRef?: React.Ref<THREE.Mesh>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
 
@@ -421,6 +426,7 @@ function Blimp({
 
       {/* LED Screen — left side (+X) */}
       <mesh
+        ref={screenRef}
         material={ledMat}
         position={[10.8, -2, 0]}
         rotation={[0, Math.PI / 2, 0]}
@@ -456,6 +462,53 @@ function Blimp({
   );
 }
 
+// ─── ViewabilityTracker — IAB/MRC frustum-based viewability ──
+//
+// Checks each ad mesh against the camera frustum every frame.
+// If visible for 1 continuous second, fires onAdViewed(adId) once per session.
+
+function ViewabilityTracker({
+  meshRefs,
+  onAdViewed,
+}: {
+  meshRefs: React.RefObject<Map<string, THREE.Mesh>>;
+  onAdViewed?: (adId: string) => void;
+}) {
+  const frustum = useMemo(() => new THREE.Frustum(), []);
+  const projScreenMatrix = useMemo(() => new THREE.Matrix4(), []);
+  const timers = useRef<Map<string, number>>(new Map());
+  const fired = useRef<Set<string>>(new Set());
+
+  useFrame(({ camera }, delta) => {
+    if (!onAdViewed || !meshRefs.current) return;
+
+    const dt = Math.min(delta, 0.1);
+
+    projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.setFromProjectionMatrix(projScreenMatrix);
+
+    for (const [adId, mesh] of meshRefs.current) {
+      if (fired.current.has(adId)) continue;
+
+      // Update world matrix so frustum check uses current position
+      mesh.updateWorldMatrix(true, false);
+
+      if (frustum.intersectsObject(mesh)) {
+        const elapsed = (timers.current.get(adId) ?? 0) + dt;
+        timers.current.set(adId, elapsed);
+        if (elapsed >= 1) {
+          fired.current.add(adId);
+          onAdViewed(adId);
+        }
+      } else {
+        timers.current.set(adId, 0);
+      }
+    }
+  });
+
+  return null;
+}
+
 // ─── SkyAds — Wrapper ────────────────────────────────────────
 
 interface SkyAdsProps {
@@ -463,10 +516,12 @@ interface SkyAdsProps {
   cityRadius: number;
   flyMode: boolean;
   onAdClick?: (ad: SkyAd) => void;
+  onAdViewed?: (adId: string) => void;
 }
 
-export default function SkyAds({ ads, cityRadius, flyMode, onAdClick }: SkyAdsProps) {
+export default function SkyAds({ ads, cityRadius, flyMode, onAdClick, onAdViewed }: SkyAdsProps) {
   const { planeAds, blimpAds } = useMemo(() => getActiveAds(ads), [ads]);
+  const meshRefs = useRef<Map<string, THREE.Mesh>>(new Map());
 
   if (planeAds.length === 0 && blimpAds.length === 0) return null;
 
@@ -481,6 +536,10 @@ export default function SkyAds({ ads, cityRadius, flyMode, onAdClick }: SkyAdsPr
           cityRadius={cityRadius}
           flyMode={flyMode}
           onAdClick={onAdClick}
+          meshRef={(el: THREE.Mesh | null) => {
+            if (el) meshRefs.current.set(ad.id, el);
+            else meshRefs.current.delete(ad.id);
+          }}
         />
       ))}
       {blimpAds.map((ad, i) => (
@@ -492,8 +551,13 @@ export default function SkyAds({ ads, cityRadius, flyMode, onAdClick }: SkyAdsPr
           cityRadius={cityRadius}
           flyMode={flyMode}
           onAdClick={onAdClick}
+          screenRef={(el: THREE.Mesh | null) => {
+            if (el) meshRefs.current.set(ad.id, el);
+            else meshRefs.current.delete(ad.id);
+          }}
         />
       ))}
+      <ViewabilityTracker meshRefs={meshRefs} onAdViewed={onAdViewed} />
     </group>
   );
 }

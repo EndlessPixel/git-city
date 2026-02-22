@@ -117,7 +117,7 @@ export async function GET(
   const { data: dev } = await supabase
     .from("developers")
     .select(
-      "id, github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count"
+      "id, github_login, name, avatar_url, contributions, contributions_total, public_repos, total_stars, rank, kudos_count"
     )
     .eq("github_login", username.toLowerCase())
     .single();
@@ -181,11 +181,15 @@ export async function GET(
         "bronze"
       : null;
 
+  // Effective contributions (matches rank calculation)
+  const contribs = (dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions;
+  const devEff = { ...dev, contributions: contribs };
+
   const t = i18n[lang];
   if (format === "stories") {
-    return renderStories(dev, achievements, highestTier, fontData, t, lang);
+    return renderStories(devEff, achievements, highestTier, fontData, t, lang);
   }
-  return renderLandscape(dev, achievements, highestTier, fontData, t);
+  return renderLandscape(devEff, achievements, highestTier, fontData, t);
 }
 
 // ─── Landscape (1200x675) ─────────────────────────────────────

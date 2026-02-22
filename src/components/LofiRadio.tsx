@@ -21,7 +21,6 @@ export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
   const howlRef = useRef<Howl | null>(null);
   const fadingRef = useRef<Howl | null>(null);
   const initRef = useRef(false);
-  const autoplayedRef = useRef(false);
 
   // Load persisted state on mount
   useEffect(() => {
@@ -33,29 +32,6 @@ export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
     setShuffle(saved.shuffle);
   }, []);
 
-  // Autoplay on first user interaction (browsers require gesture)
-  useEffect(() => {
-    if (autoplayedRef.current) return;
-    const handler = () => {
-      if (autoplayedRef.current) return;
-      autoplayedRef.current = true;
-      // Small delay so other click handlers run first
-      setTimeout(() => {
-        if (!howlRef.current && !playing) {
-          playTrack(trackIndex);
-        }
-      }, 300);
-      window.removeEventListener("click", handler);
-      window.removeEventListener("touchstart", handler);
-    };
-    window.addEventListener("click", handler, { once: true });
-    window.addEventListener("touchstart", handler, { once: true });
-    return () => {
-      window.removeEventListener("click", handler);
-      window.removeEventListener("touchstart", handler);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Persist state changes
   useEffect(() => {

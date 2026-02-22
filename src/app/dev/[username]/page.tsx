@@ -36,7 +36,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: "Developer Not Found - Git City" };
   }
 
-  const description = `#${dev.rank ?? "?"} in Git City — ${dev.contributions.toLocaleString()} contributions, ${dev.public_repos} repos, ${dev.total_stars.toLocaleString()} stars`;
+  const contribs = (dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions;
+  const description = `#${dev.rank ?? "?"} in Git City | ${contribs.toLocaleString()} contributions, ${dev.public_repos.toLocaleString()} repos, ${dev.total_stars.toLocaleString()} stars`;
 
   return {
     title: `@${dev.github_login} - Git City`,
@@ -225,7 +226,7 @@ export default async function DevPage({ params }: Props) {
           <div className="flex flex-wrap items-center justify-center gap-2">
             <ShareButtons
               login={dev.github_login}
-              contributions={dev.contributions}
+              contributions={(dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions}
               rank={dev.rank}
               accent={accent}
               shadow={shadow}
@@ -237,7 +238,7 @@ export default async function DevPage({ params }: Props) {
         {/* Stats Grid */}
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           {[
-            { label: "Contributions", value: dev.contributions.toLocaleString() },
+            { label: "Contributions", value: ((dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions).toLocaleString() },
             { label: "Repos", value: dev.public_repos.toLocaleString() },
             { label: "Stars", value: dev.total_stars.toLocaleString() },
             { label: "Kudos", value: (dev.kudos_count ?? 0).toLocaleString() },

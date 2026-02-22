@@ -17,6 +17,7 @@ interface Developer {
   name: string | null;
   avatar_url: string | null;
   contributions: number;
+  contributions_total: number | null;
   total_stars: number;
   public_repos: number;
   primary_language: string | null;
@@ -65,11 +66,13 @@ export default async function LeaderboardPage({
   const supabase = getSupabaseAdmin();
 
   // Fetch devs sorted by the active metric
-  const orderColumn = activeTab === "contributors" ? "contributions"
+  // Contributors uses rank (based on contributions_total) for consistency
+  const orderColumn = activeTab === "contributors" ? "rank"
     : activeTab === "stars" ? "total_stars"
     : activeTab === "architects" ? "public_repos"
     : activeTab === "recruiters" ? "referral_count"
     : "contributions"; // achievers handled separately
+  const orderAscending = activeTab === "contributors"; // rank is ascending (1 = best)
 
   let devs: Developer[] = [];
   let achieverCounts: Record<string, number> = {};
@@ -88,7 +91,7 @@ export default async function LeaderboardPage({
     // Get all devs and sort by achievement count, tiebreak by created_at
     const { data: allDevs } = await supabase
       .from("developers")
-      .select("id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, referral_count, kudos_count, created_at")
+      .select("id, github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count, created_at")
       .order("contributions", { ascending: false })
       .limit(500);
 
@@ -105,8 +108,8 @@ export default async function LeaderboardPage({
   } else {
     const { data } = await supabase
       .from("developers")
-      .select("github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
-      .order(orderColumn, { ascending: false })
+      .select("github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
+      .order(orderColumn, { ascending: orderAscending, nullsFirst: false })
       .order("created_at", { ascending: true })
       .limit(50);
     devs = (data ?? []) as Developer[];
@@ -131,7 +134,7 @@ export default async function LeaderboardPage({
       // Fetch user outside top 50
       const { data: userData } = await supabase
         .from("developers")
-        .select("github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
+        .select("github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
         .eq("github_login", currentUser)
         .single();
       if (userData) {
@@ -152,10 +155,12 @@ export default async function LeaderboardPage({
               .eq("developer_id", (userData as Record<string, unknown>).id);
             achieverCounts[userData.github_login] = achCount ?? 0;
           }
+        } else if (activeTab === "contributors") {
+          // Contributors tab uses rank directly
+          userPosition = (userData as Record<string, unknown>).rank as number ?? null;
         } else {
           // Calculate position via count of devs with higher metric
-          const metricValue = activeTab === "contributors" ? userData.contributions
-            : activeTab === "stars" ? userData.total_stars
+          const metricValue = activeTab === "stars" ? userData.total_stars
             : activeTab === "architects" ? userData.public_repos
             : activeTab === "recruiters" ? ((userData as Record<string, unknown>).referral_count as number ?? 0)
             : 0;
@@ -171,7 +176,7 @@ export default async function LeaderboardPage({
 
   function getMetricValue(dev: Developer): string {
     switch (activeTab) {
-      case "contributors": return dev.contributions.toLocaleString();
+      case "contributors": return ((dev.contributions_total && dev.contributions_total > 0) ? dev.contributions_total : dev.contributions).toLocaleString();
       case "stars": return dev.total_stars.toLocaleString();
       case "architects": return dev.public_repos.toLocaleString();
       case "achievers": return String(achieverCounts[dev.github_login] ?? 0);

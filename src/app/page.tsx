@@ -356,7 +356,6 @@ function HomeContent() {
   const [compareLang, setCompareLang] = useState<"en" | "pt">("en");
   const [clickedAd, setClickedAd] = useState<import("@/lib/skyAds").SkyAd | null>(null);
   const [skyAds, setSkyAds] = useState<import("@/lib/skyAds").SkyAd[]>(DEFAULT_SKY_ADS);
-  const impressedRef = useRef(new Set<string>());
 
   // Fetch ads from DB (fallback to DEFAULT_SKY_ADS on error)
   useEffect(() => {
@@ -365,16 +364,6 @@ function HomeContent() {
       .then((data) => { if (Array.isArray(data) && data.length > 0) setSkyAds(data); })
       .catch(() => {});
   }, []);
-
-  // Fire impression events once per ad per session
-  useEffect(() => {
-    for (const ad of skyAds) {
-      if (!impressedRef.current.has(ad.id)) {
-        impressedRef.current.add(ad.id);
-        trackAdEvent(ad.id, "impression");
-      }
-    }
-  }, [skyAds]);
 
   // Derived — second focused building for dual-focus camera
   const focusedBuildingB = comparePair ? comparePair[1].login : null;
@@ -568,7 +557,7 @@ function HomeContent() {
             setCompareBuilding(null);
           } else if (giftModalOpen) { setGiftModalOpen(false); setGiftItems(null); }
             else if (giftClaimed) setGiftClaimed(false);
-          else if (shareData) { setShareData(null); setFocusedBuilding(null); }
+          else if (shareData) { setShareData(null); setSelectedBuilding(null); setFocusedBuilding(null); }
           else if (selectedBuilding) { setSelectedBuilding(null); setFocusedBuilding(null); }
           else if (focusedBuilding) setFocusedBuilding(null);
           else if (exploreMode) { setExploreMode(false); setFocusedBuilding(savedFocusRef.current); savedFocusRef.current = null; }
@@ -795,6 +784,7 @@ function HomeContent() {
           rank: devData.rank,
           avatar_url: devData.avatar_url,
         });
+        if (foundBuilding) setSelectedBuilding(foundBuilding);
         setCopied(false);
       } else if (foundBuilding) {
         // Existing developer: enter explore mode and show profile card
@@ -889,6 +879,7 @@ function HomeContent() {
           trackAdEvent(ad.id, "click");
           setClickedAd(ad);
         }}
+        onAdViewed={(adId) => trackAdEvent(adId, "impression")}
         onFocusInfo={() => {}}
         onBuildingClick={(b) => {
           // Compare pick mode: clicking a second building completes the pair
@@ -1656,19 +1647,27 @@ function HomeContent() {
           ? `Tie ${totalAWins}-${totalBWins}`
           : `@${cmpWinner} wins ${Math.max(totalAWins, totalBWins)}-${Math.min(totalAWins, totalBWins)}`;
 
+        const closeCompare = () => { setSelectedBuilding(comparePair[0]); setFocusedBuilding(comparePair[0].login); setComparePair(null); setCompareBuilding(null); };
+
         return (
         <>
+          {/* Backdrop - click to close (desktop only, mobile needs canvas interaction) */}
+          <div className="pointer-events-auto fixed inset-0 z-30 hidden sm:block" onClick={closeCompare} />
           <div className="pointer-events-auto fixed z-40
             bottom-0 left-0 right-0
             sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
           >
             <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
               w-full sm:w-[380px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
-              max-h-[55vh] overflow-y-auto
+              max-h-[45vh] overflow-y-auto
               animate-[slide-up_0.2s_ease-out] sm:animate-none"
             >
-              {/* Drag handle on mobile */}
-              <div className="flex justify-center py-2 sm:hidden">
+              {/* Drag handle on mobile - swipe down to close */}
+              <div
+                className="flex justify-center py-2 sm:hidden"
+                onTouchStart={(e) => { (e.currentTarget as any)._touchY = e.touches[0].clientY; }}
+                onTouchEnd={(e) => { const start = (e.currentTarget as any)._touchY; if (start != null && e.changedTouches[0].clientY - start > 50) closeCompare(); }}
+              >
                 <div className="h-1 w-10 rounded-full bg-border" />
               </div>
 
@@ -1724,7 +1723,7 @@ function HomeContent() {
                       className="w-[72px] text-right text-[11px] tabular-nums"
                       style={{ color: s.aW ? theme.accent : s.bW ? "#555" : "#888" }}
                     >
-                      {s.key === "rank" ? `#${s.a}` : s.a.toLocaleString()}
+                      {s.key === "rank" ? (s.a > 0 ? `#${s.a}` : "-") : s.a.toLocaleString()}
                     </span>
                     <span className="flex-1 text-center text-[8px] text-muted uppercase tracking-wider">
                       {s.label}
@@ -1733,7 +1732,7 @@ function HomeContent() {
                       className="w-[72px] text-left text-[11px] tabular-nums"
                       style={{ color: s.bW ? theme.accent : s.aW ? "#555" : "#888" }}
                     >
-                      {s.key === "rank" ? `#${s.b}` : s.b.toLocaleString()}
+                      {s.key === "rank" ? (s.b > 0 ? `#${s.b}` : "-") : s.b.toLocaleString()}
                     </span>
                   </div>
                 ))}
@@ -1852,7 +1851,7 @@ function HomeContent() {
                   Compare Again
                 </button>
                 <button
-                  onClick={() => { setSelectedBuilding(comparePair[0]); setFocusedBuilding(comparePair[0].login); setComparePair(null); setCompareBuilding(null); }}
+                  onClick={closeCompare}
                   className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
                 >
                   Close
@@ -1870,14 +1869,14 @@ function HomeContent() {
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
-            onClick={() => { setShareData(null); setFocusedBuilding(null); }}
+            onClick={() => { setShareData(null); setSelectedBuilding(null); setFocusedBuilding(null); }}
           />
 
           {/* Modal */}
           <div className="relative mx-3 border-[3px] border-border bg-bg-raised p-4 text-center sm:mx-0 sm:p-6">
             {/* Close */}
             <button
-              onClick={() => { setShareData(null); setFocusedBuilding(null); }}
+              onClick={() => { setShareData(null); setSelectedBuilding(null); setFocusedBuilding(null); }}
               className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream"
             >
               &#10005;
@@ -1909,6 +1908,12 @@ function HomeContent() {
             <div className="mt-4 flex flex-col items-center gap-2 sm:mt-5 sm:flex-row sm:justify-center sm:gap-3">
               <button
                 onClick={() => {
+                  if (!selectedBuilding && shareData) {
+                    const b = buildings.find(
+                      (b) => b.login.toLowerCase() === shareData.login.toLowerCase()
+                    );
+                    if (b) setSelectedBuilding(b);
+                  }
                   setShareData(null);
                   setExploreMode(true);
                 }}

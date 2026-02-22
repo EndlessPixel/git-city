@@ -129,7 +129,7 @@ export async function GET(
   const fontData = await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf"));
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
-  const fields = "github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count";
+  const fields = "github_login, name, avatar_url, contributions, contributions_total, public_repos, total_stars, rank, kudos_count";
   const [{ data: devA }, { data: devB }] = await Promise.all([
     supabase.from("developers").select(fields).eq("github_login", userA.toLowerCase()).single(),
     supabase.from("developers").select(fields).eq("github_login", userB.toLowerCase()).single(),
@@ -141,6 +141,12 @@ export async function GET(
       { width: 1200, height: 675, fonts: [{ name: "Silkscreen", data: fontData, style: "normal" as const, weight: 400 as const }] }
     );
   }
+
+  // Effective contributions (matches rank calculation)
+  const contribsA = ((devA as Record<string, unknown>).contributions_total as number) || (devA as Record<string, unknown>).contributions as number;
+  const contribsB = ((devB as Record<string, unknown>).contributions_total as number) || (devB as Record<string, unknown>).contributions as number;
+  const devAEff = { ...devA, contributions: contribsA };
+  const devBEff = { ...devB, contributions: contribsB };
 
   // Compare stats
   const statDefs = [
@@ -154,8 +160,8 @@ export async function GET(
   let aWins = 0;
   let bWins = 0;
   const statRows = statDefs.map((s) => {
-    const a: number = (devA as Record<string, number>)[s.key] ?? 0;
-    const b: number = (devB as Record<string, number>)[s.key] ?? 0;
+    const a: number = (devAEff as Record<string, number>)[s.key] ?? 0;
+    const b: number = (devBEff as Record<string, number>)[s.key] ?? 0;
     let aWin = false, bWin = false;
     if (s.invert) { aWin = a > 0 && (a < b || b === 0); bWin = b > 0 && (b < a || a === 0); }
     else { aWin = a > b; bWin = b > a; }
@@ -177,9 +183,9 @@ export async function GET(
   const trashTalk = getTrashTalk(aWins, bWins, lang);
 
   if (format === "stories") {
-    return renderStories(devA, devB, statRows, summary, trashTalk, aColor, bColor, aIsWinner, bIsWinner, isTie, t, fontData);
+    return renderStories(devAEff, devBEff, statRows, summary, trashTalk, aColor, bColor, aIsWinner, bIsWinner, isTie, t, fontData);
   }
-  return renderLandscape(devA, devB, statRows, summary, trashTalk, aColor, bColor, aIsWinner, bIsWinner, isTie, fontData);
+  return renderLandscape(devAEff, devBEff, statRows, summary, trashTalk, aColor, bColor, aIsWinner, bIsWinner, isTie, fontData);
 }
 
 // ─── Landscape (1200x675) ─────────────────────────────────────
@@ -243,9 +249,9 @@ function renderLandscape(
           {/* Stats rows */}
           {statRows.map((s) => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", marginBottom: 6, width: 620 }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", width: 220, fontSize: 32, color: s.aWin ? accent : muted, paddingRight: 12 }}>{s.isRank ? `#${s.a}` : s.a.toLocaleString()}</div>
+              <div style={{ display: "flex", justifyContent: "flex-end", width: 220, fontSize: 32, color: s.aWin ? accent : muted, paddingRight: 12 }}>{s.isRank ? (s.a > 0 ? `#${s.a}` : "-") : s.a.toLocaleString()}</div>
               <div style={{ display: "flex", justifyContent: "center", width: 160, fontSize: 16, color: `${muted}aa` }}>{s.label}</div>
-              <div style={{ display: "flex", width: 220, fontSize: 32, color: s.bWin ? accent : muted, paddingLeft: 12 }}>{s.isRank ? `#${s.b}` : s.b.toLocaleString()}</div>
+              <div style={{ display: "flex", width: 220, fontSize: 32, color: s.bWin ? accent : muted, paddingLeft: 12 }}>{s.isRank ? (s.b > 0 ? `#${s.b}` : "-") : s.b.toLocaleString()}</div>
             </div>
           ))}
         </div>
@@ -329,9 +335,9 @@ function renderStories(
         <div style={{ position: "absolute", top: GROUND_Y + 40, left: 0, width: 1080, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           {statRows.map((s) => (
             <div key={s.label} style={{ display: "flex", alignItems: "center", width: 900 }}>
-              <div style={{ display: "flex", justifyContent: "flex-end", width: 320, fontSize: 34, color: s.aWin ? accent : muted, paddingRight: 16 }}>{s.isRank ? `#${s.a}` : s.a.toLocaleString()}</div>
+              <div style={{ display: "flex", justifyContent: "flex-end", width: 320, fontSize: 34, color: s.aWin ? accent : muted, paddingRight: 16 }}>{s.isRank ? (s.a > 0 ? `#${s.a}` : "-") : s.a.toLocaleString()}</div>
               <div style={{ display: "flex", justifyContent: "center", width: 160, fontSize: 16, color: `${muted}aa` }}>{s.label}</div>
-              <div style={{ display: "flex", width: 320, fontSize: 34, color: s.bWin ? accent : muted, paddingLeft: 16 }}>{s.isRank ? `#${s.b}` : s.b.toLocaleString()}</div>
+              <div style={{ display: "flex", width: 320, fontSize: 34, color: s.bWin ? accent : muted, paddingLeft: 16 }}>{s.isRank ? (s.b > 0 ? `#${s.b}` : "-") : s.b.toLocaleString()}</div>
             </div>
           ))}
         </div>

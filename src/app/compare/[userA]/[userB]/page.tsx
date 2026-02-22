@@ -17,12 +17,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [{ data: devA }, { data: devB }] = await Promise.all([
     supabase
       .from("developers")
-      .select("github_login, contributions, total_stars, rank")
+      .select("github_login, contributions, contributions_total, total_stars, rank")
       .eq("github_login", userA.toLowerCase())
       .single(),
     supabase
       .from("developers")
-      .select("github_login, contributions, total_stars, rank")
+      .select("github_login, contributions, contributions_total, total_stars, rank")
       .eq("github_login", userB.toLowerCase())
       .single(),
   ]);
@@ -36,7 +36,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const description = `@${devA.github_login} (#${devA.rank}, ${devA.contributions.toLocaleString()} contributions, ${devA.total_stars.toLocaleString()} stars) vs @${devB.github_login} (#${devB.rank}, ${devB.contributions.toLocaleString()} contributions, ${devB.total_stars.toLocaleString()} stars)`;
+  const contribsA = (devA.contributions_total && devA.contributions_total > 0) ? devA.contributions_total : devA.contributions;
+  const contribsB = (devB.contributions_total && devB.contributions_total > 0) ? devB.contributions_total : devB.contributions;
+  const description = `@${devA.github_login} (#${devA.rank ?? "?"}, ${contribsA.toLocaleString()} contributions, ${devA.total_stars.toLocaleString()} stars) vs @${devB.github_login} (#${devB.rank ?? "?"}, ${contribsB.toLocaleString()} contributions, ${devB.total_stars.toLocaleString()} stars)`;
 
   return {
     title,
