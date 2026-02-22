@@ -28,6 +28,7 @@ interface CitySceneProps {
   buildings: CityBuilding[];
   colors: BuildingColors;
   focusedBuilding?: string | null;
+  focusedBuildingB?: string | null;
   accentColor?: string;
   onBuildingClick?: (building: CityBuilding) => void;
   onFocusInfo?: (info: FocusInfo) => void;
@@ -37,6 +38,7 @@ export default function CityScene({
   buildings,
   colors,
   focusedBuilding,
+  focusedBuildingB,
   accentColor,
   onBuildingClick,
   onFocusInfo,
@@ -65,7 +67,7 @@ export default function CityScene({
 
   // Dim far buildings when one is focused
   useEffect(() => {
-    if (focusedBuilding) {
+    if (focusedBuilding || focusedBuildingB) {
       farMaterial.transparent = true;
       farMaterial.opacity = 0.55;
       farMaterial.emissiveIntensity = 0.4;
@@ -75,7 +77,7 @@ export default function CityScene({
       farMaterial.emissiveIntensity = 1.2;
     }
     farMaterial.needsUpdate = true;
-  }, [focusedBuilding, farMaterial]);
+  }, [focusedBuilding, focusedBuildingB, farMaterial]);
 
   // Force recalculation when buildings array changes
   useEffect(() => {
@@ -89,6 +91,10 @@ export default function CityScene({
       farMaterial.dispose();
     };
   }, [sharedGeo, farMaterial]);
+
+  // Cache lowercase focus names to avoid per-building string allocation in useFrame
+  const focusedLower = focusedBuilding?.toLowerCase() ?? null;
+  const focusedBLower = focusedBuildingB?.toLowerCase() ?? null;
 
   // Centralized LOD check — one useFrame for all buildings
   useFrame(({ camera, clock, size }) => {
@@ -105,9 +111,9 @@ export default function CityScene({
       const dz = camera.position.z - b.position[2];
       const dist = Math.sqrt(dx * dx + dz * dz);
 
+      const loginLower = b.login.toLowerCase();
       const isFocused =
-        focusedBuilding != null &&
-        focusedBuilding.toLowerCase() === b.login.toLowerCase();
+        loginLower === focusedLower || loginLower === focusedBLower;
 
       if (isFocused && onFocusInfo) {
         // Project building top to screen coordinates
@@ -169,22 +175,24 @@ export default function CityScene({
       />
 
       {/* Near buildings: individual components with username label + effects */}
-      {nearBuildings.map((b) => (
-        <Building3D
-          key={b.login}
-          building={b}
-          colors={colors}
-          focused={
-            focusedBuilding?.toLowerCase() === b.login.toLowerCase()
-          }
-          dimmed={
-            !!focusedBuilding &&
-            focusedBuilding.toLowerCase() !== b.login.toLowerCase()
-          }
-          accentColor={accentColor}
-          onClick={onBuildingClick}
-        />
-      ))}
+      {nearBuildings.map((b) => {
+        const loginLower = b.login.toLowerCase();
+        const isA = focusedBuilding?.toLowerCase() === loginLower;
+        const isB = focusedBuildingB?.toLowerCase() === loginLower;
+        return (
+          <Building3D
+            key={b.login}
+            building={b}
+            colors={colors}
+            focused={isA || isB}
+            dimmed={
+              !!(focusedBuilding || focusedBuildingB) && !isA && !isB
+            }
+            accentColor={accentColor}
+            onClick={onBuildingClick}
+          />
+        );
+      })}
     </>
   );
 }

@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   if (githubLogin) {
     // Auto-claim: if building exists and not yet claimed, claim it
-    await admin
+    const { data: claimResult } = await admin
       .from("developers")
       .update({
         claimed: true,
@@ -37,7 +37,17 @@ export async function GET(request: Request) {
         fetch_priority: 1,
       })
       .eq("github_login", githubLogin)
-      .eq("claimed", false);
+      .eq("claimed", false)
+      .select("id");
+
+    // First-time claim → dev_joined feed event
+    if (claimResult && claimResult.length > 0) {
+      await admin.from("activity_feed").insert({
+        event_type: "dev_joined",
+        actor_id: claimResult[0].id,
+        metadata: { login: githubLogin },
+      });
+    }
 
     // Fetch dev record for achievement check + referral processing
     // Uses try-catch to avoid breaking login if v2 columns/tables don't exist yet

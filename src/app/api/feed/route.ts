@@ -6,7 +6,15 @@ export async function GET(request: Request) {
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10)));
   const before = searchParams.get("before"); // UUID cursor
 
+  const todayOnly = searchParams.get("today") === "1";
+
   const sb = getSupabaseAdmin();
+
+  // Piggyback cleanup: delete events older than 30 days (~1% chance per request)
+  if (Math.random() < 0.01) {
+    const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+    sb.from("activity_feed").delete().lt("created_at", cutoff).then(() => {});
+  }
 
   let query = sb
     .from("activity_feed")
@@ -20,6 +28,11 @@ export async function GET(request: Request) {
     `)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (todayOnly) {
+    const today = new Date().toISOString().split("T")[0];
+    query = query.gte("created_at", `${today}T00:00:00Z`);
+  }
 
   if (before) {
     // Get the created_at of the cursor event to page from there

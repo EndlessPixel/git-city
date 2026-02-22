@@ -92,19 +92,32 @@ export default function ActivityPanel({ initialEvents, open, onClose, onNavigate
         ) : (
           events.map((e) => {
             const login = e.actor?.login;
+            const avatarUrl = e.actor?.avatar_url;
             return (
               <div
                 key={e.id}
                 className="border-b border-border/30 px-4 py-3 hover:bg-bg-card/50 transition-colors"
               >
                 <p className="text-[9px] text-dim">{relativeTime(e.created_at)}</p>
-                <p className="mt-1 text-[10px] text-cream normal-case">
-                  {formatEvent(e)}
-                </p>
+                <div className="mt-1 flex items-start gap-2">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={login ?? ""}
+                      className="mt-0.5 h-5 w-5 shrink-0 border border-border"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  ) : (
+                    <div className="mt-0.5 h-5 w-5 shrink-0 border border-border bg-bg-card" />
+                  )}
+                  <p className="text-[10px] text-cream normal-case">
+                    {formatEvent(e)}
+                  </p>
+                </div>
                 {login && (
                   <button
                     onClick={() => onNavigate?.(login)}
-                    className="mt-1 text-[9px] hover:underline"
+                    className="mt-1 ml-7 text-[9px] hover:underline"
                     style={{ color: ACCENT }}
                   >
                     View building →

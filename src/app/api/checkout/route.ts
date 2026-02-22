@@ -210,7 +210,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Failed to create purchase" }, { status: 500 });
       }
 
-      const { url } = await createCheckoutSession(item_id, dev.id, githubLogin, "usd", user.email);
+      const { url } = await createCheckoutSession(item_id, dev.id, githubLogin, "usd", user.email, giftedToDevId);
       return NextResponse.json({ url, purchase_id: purchase.id });
     } else {
       // AbacatePay

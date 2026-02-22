@@ -10,11 +10,14 @@ import {
   type CityBuilding,
   type CityPlaza,
   type CityDecoration,
+  type CityRiver,
+  type CityBridge,
 } from "@/lib/github";
 import Image from "next/image";
 import Link from "next/link";
 import ActivityTicker, { type FeedEvent } from "@/components/ActivityTicker";
 import ActivityPanel from "@/components/ActivityPanel";
+import { ITEM_NAMES, ITEM_EMOJIS } from "@/lib/zones";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -264,6 +267,8 @@ function HomeContent() {
   const [buildings, setBuildings] = useState<CityBuilding[]>([]);
   const [plazas, setPlazas] = useState<CityPlaza[]>([]);
   const [decorations, setDecorations] = useState<CityDecoration[]>([]);
+  const [river, setRiver] = useState<CityRiver | null>(null);
+  const [bridges, setBridges] = useState<CityBridge[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [feedback, setFeedback] = useState<{
@@ -299,6 +304,16 @@ function HomeContent() {
   const [kudosSent, setKudosSent] = useState(false);
   const [focusDist, setFocusDist] = useState(999);
   const visitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [compareBuilding, setCompareBuilding] = useState<CityBuilding | null>(null);
+  const [comparePair, setComparePair] = useState<[CityBuilding, CityBuilding] | null>(null);
+  const [compareSelfHint, setCompareSelfHint] = useState(false);
+  const [giftModalOpen, setGiftModalOpen] = useState(false);
+  const [giftItems, setGiftItems] = useState<{ id: string; price_usd_cents: number }[] | null>(null);
+  const [giftBuying, setGiftBuying] = useState<string | null>(null);
+  const [compareCopied, setCompareCopied] = useState(false);
+
+  // Derived — second focused building for dual-focus camera
+  const focusedBuildingB = comparePair ? comparePair[1].login : null;
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -364,7 +379,7 @@ function HomeContent() {
     let cancelled = false;
     const fetchFeed = async () => {
       try {
-        const res = await fetch("/api/feed?limit=20");
+        const res = await fetch("/api/feed?limit=20&today=1");
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setFeedEvents(data.events ?? []);
@@ -408,27 +423,87 @@ function HomeContent() {
       });
       if (res.ok) {
         setKudosSent(true);
+        // Increment kudos_count locally
+        const newCount = (selectedBuilding.kudos_count ?? 0) + 1;
+        setSelectedBuilding({ ...selectedBuilding, kudos_count: newCount });
+        setBuildings((prev) =>
+          prev.map((b) =>
+            b.login === selectedBuilding.login ? { ...b, kudos_count: newCount } : b
+          )
+        );
         setTimeout(() => setKudosSent(false), 3000);
       }
     } catch { /* ignore */ }
     finally { setKudosSending(false); }
   }, [selectedBuilding, kudosSending, kudosSent, session, authLogin]);
 
+  // Gift: open modal with available items
+  const handleOpenGift = useCallback(async () => {
+    if (!selectedBuilding || !session) return;
+    setGiftModalOpen(true);
+    setGiftItems(null);
+    try {
+      const res = await fetch("/api/items");
+      if (!res.ok) return;
+      const { items } = await res.json();
+      const receiverOwned = new Set(selectedBuilding.owned_items ?? []);
+      const NON_GIFTABLE = new Set(["flag", "custom_color"]);
+      const available = (items as { id: string; price_usd_cents: number; category: string }[])
+        .filter((i) => i.price_usd_cents > 0 && !receiverOwned.has(i.id) && !NON_GIFTABLE.has(i.id));
+      setGiftItems(available);
+    } catch { /* ignore */ }
+  }, [selectedBuilding, session]);
+
+  // Gift: checkout for receiver
+  const handleGiftCheckout = useCallback(async (itemId: string) => {
+    if (!selectedBuilding || giftBuying) return;
+    setGiftBuying(itemId);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: itemId,
+          provider: "stripe",
+          gifted_to_login: selectedBuilding.login,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      }
+    } catch { /* ignore */ }
+    finally { setGiftBuying(null); }
+  }, [selectedBuilding, giftBuying]);
+
   const lastDistRef = useRef(999);
 
   // ESC: layered dismissal
   // During fly mode: only close overlays (profile card) — AirplaneFlight handles pause/exit
-  // Outside fly mode: share modal → profile card → focus → explore mode
+  // Outside fly mode: compare → share modal → profile card → focus → explore mode
   useEffect(() => {
     if (flyMode && !selectedBuilding) return;
-    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed) return;
+    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed && !giftModalOpen && !comparePair && !compareBuilding) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
         if (flyMode && selectedBuilding) {
           setSelectedBuilding(null);
           setFocusedBuilding(null);
         } else if (!flyMode) {
-          if (giftClaimed) setGiftClaimed(false);
+          // Compare states take priority after fly mode
+          if (comparePair) {
+            // Return to building A's profile card
+            setSelectedBuilding(comparePair[0]);
+            setFocusedBuilding(comparePair[0].login);
+            setComparePair(null);
+            setCompareBuilding(null);
+          } else if (compareBuilding) {
+            // Cancel pick, restore profile card of first building
+            setSelectedBuilding(compareBuilding);
+            setFocusedBuilding(compareBuilding.login);
+            setCompareBuilding(null);
+          } else if (giftModalOpen) { setGiftModalOpen(false); setGiftItems(null); }
+            else if (giftClaimed) setGiftClaimed(false);
           else if (shareData) { setShareData(null); setFocusedBuilding(null); }
           else if (selectedBuilding) { setSelectedBuilding(null); setFocusedBuilding(null); }
           else if (focusedBuilding) setFocusedBuilding(null);
@@ -438,7 +513,7 @@ function HomeContent() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed]);
+  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed, giftModalOpen, comparePair, compareBuilding]);
 
   const reloadCity = useCallback(async (bustCache = false) => {
     const cacheBust = bustCache ? `&_t=${Date.now()}` : "";
@@ -453,6 +528,8 @@ function HomeContent() {
     setBuildings(layout.buildings);
     setPlazas(layout.plazas);
     setDecorations(layout.decorations);
+    setRiver(layout.river);
+    setBridges(layout.bridges);
 
     const total = data.stats?.total_developers ?? 0;
     if (total <= 500) return layout.buildings;
@@ -475,6 +552,8 @@ function HomeContent() {
     setBuildings(fullLayout.buildings);
     setPlazas(fullLayout.plazas);
     setDecorations(fullLayout.decorations);
+    setRiver(fullLayout.river);
+    setBridges(fullLayout.bridges);
     return fullLayout.buildings;
   }, []);
 
@@ -512,6 +591,25 @@ function HomeContent() {
     }
   }, [userParam, buildings]);
 
+  // Handle ?compare=userA,userB deep link
+  const compareParam = searchParams.get("compare");
+  const didHandleCompareParam = useRef(false);
+  useEffect(() => {
+    if (compareParam && buildings.length > 0 && !didHandleCompareParam.current) {
+      const parts = compareParam.split(",").map(s => s.trim().toLowerCase());
+      if (parts.length === 2 && parts[0] !== parts[1]) {
+        const bA = buildings.find(b => b.login.toLowerCase() === parts[0]);
+        const bB = buildings.find(b => b.login.toLowerCase() === parts[1]);
+        if (bA && bB) {
+          didHandleCompareParam.current = true;
+          setComparePair([bA, bB]);
+          setFocusedBuilding(bA.login);
+          setExploreMode(true);
+        }
+      }
+    }
+  }, [compareParam, buildings]);
+
   // Detect post-purchase redirect (?purchased=item_id)
   const purchasedParam = searchParams.get("purchased");
   useEffect(() => {
@@ -536,6 +634,9 @@ function HomeContent() {
       return;
     }
 
+    // Snapshot compare state before async work — ESC may clear it mid-flight
+    const wasComparing = compareBuilding;
+
     setLoading(true);
     setFeedback({ type: "loading" });
     setFocusedBuilding(null);
@@ -543,6 +644,14 @@ function HomeContent() {
     setShareData(null);
 
     try {
+      // Self-compare guard
+      if (wasComparing && trimmed === wasComparing.login.toLowerCase()) {
+        setCompareSelfHint(true);
+        setTimeout(() => setCompareSelfHint(false), 2000);
+        setFeedback(null);
+        return;
+      }
+
       // Check if dev already exists in the city before the fetch
       const existedBefore = buildings.some(
         (b) => b.login.toLowerCase() === trimmed
@@ -577,7 +686,25 @@ function HomeContent() {
       // Focus camera on the searched building
       setFocusedBuilding(devData.github_login);
 
-      if (!existedBefore) {
+      // Find the building in the updated city
+      const foundBuilding = updatedBuildings?.find(
+        (b: CityBuilding) => b.login.toLowerCase() === trimmed
+      );
+
+      // Compare pick mode: use snapshot so ESC mid-search doesn't cause stale state
+      if (wasComparing && !comparePair && foundBuilding) {
+        // Only complete if compare mode is still active (not cancelled by ESC)
+        if (compareBuilding) {
+          setComparePair([wasComparing, foundBuilding]);
+          setFocusedBuilding(wasComparing.login);
+        } else {
+          // Compare was cancelled during search — fall through to normal
+          if (foundBuilding) {
+            setSelectedBuilding(foundBuilding);
+            setExploreMode(true);
+          }
+        }
+      } else if (!existedBefore) {
         // New developer: show the share modal
         setShareData({
           login: devData.github_login,
@@ -586,15 +713,10 @@ function HomeContent() {
           avatar_url: devData.avatar_url,
         });
         setCopied(false);
-      } else {
-        // Existing developer: enter explore mode and show profile card (like a click)
-        const foundBuilding = updatedBuildings?.find(
-          (b: CityBuilding) => b.login.toLowerCase() === trimmed
-        );
-        if (foundBuilding) {
-          setSelectedBuilding(foundBuilding);
-          setExploreMode(true);
-        }
+      } else if (foundBuilding) {
+        // Existing developer: enter explore mode and show profile card
+        setSelectedBuilding(foundBuilding);
+        setExploreMode(true);
       }
       setUsername("");
     } catch {
@@ -666,18 +788,35 @@ function HomeContent() {
         buildings={buildings}
         plazas={plazas}
         decorations={decorations}
+        river={river}
+        bridges={bridges}
         flyMode={flyMode}
         onExitFly={() => { setFlyMode(false); setFlyPaused(false); }}
         themeIndex={themeIndex}
         onHud={(s, a) => setHud({ speed: s, altitude: a })}
         onPause={(p) => setFlyPaused(p)}
         focusedBuilding={focusedBuilding}
+        focusedBuildingB={focusedBuildingB}
         accentColor={theme.accent}
         onClearFocus={() => setFocusedBuilding(null)}
         flyPauseSignal={flyPauseSignal}
         flyHasOverlay={!!selectedBuilding}
         onFocusInfo={() => {}}
         onBuildingClick={(b) => {
+          // Compare pick mode: clicking a second building completes the pair
+          if (compareBuilding && !comparePair) {
+            if (b.login.toLowerCase() === compareBuilding.login.toLowerCase()) {
+              setCompareSelfHint(true);
+              setTimeout(() => setCompareSelfHint(false), 2000);
+              return;
+            }
+            setComparePair([compareBuilding, b]);
+            setFocusedBuilding(compareBuilding.login);
+            return;
+          }
+          // Active comparison: ignore clicks
+          if (comparePair) return;
+
           setSelectedBuilding(b);
           setFocusedBuilding(b.login);
           lastDistRef.current = 999;
@@ -781,7 +920,16 @@ function HomeContent() {
           {/* Back button */}
           <div className="pointer-events-auto absolute top-3 left-3 sm:top-4 sm:left-4">
             <button
-              onClick={() => { setExploreMode(false); setFocusedBuilding(savedFocusRef.current); savedFocusRef.current = null; }}
+              onClick={() => {
+                if (selectedBuilding) {
+                  setSelectedBuilding(null);
+                  setFocusedBuilding(null);
+                } else {
+                  setExploreMode(false);
+                  setFocusedBuilding(savedFocusRef.current);
+                  savedFocusRef.current = null;
+                }
+              }}
               className="flex items-center gap-2 border-[3px] border-border bg-bg/70 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
               style={{ borderColor: undefined }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent + "80")}
@@ -870,7 +1018,7 @@ function HomeContent() {
                   if (feedback?.type === "error") setFeedback(null);
                 }}
                 placeholder="find yourself in the city"
-                className="min-w-0 flex-1 border-[3px] border-border bg-bg-raised px-3 py-2 text-xs text-cream outline-none transition-colors placeholder:text-dim sm:px-4 sm:py-2.5"
+                className="min-w-0 flex-1 border-[3px] border-border bg-bg-raised px-3 py-2 text-base sm:text-xs text-cream outline-none transition-colors placeholder:text-dim sm:px-4 sm:py-2.5"
                 style={{ borderColor: undefined }}
                 onFocus={(e) => (e.currentTarget.style.borderColor = theme.accent)}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "")}
@@ -1080,14 +1228,8 @@ function HomeContent() {
 
       {/* ─── Building Profile Card ─── */}
       {/* Desktop: right edge, vertically centered. Mobile: bottom sheet, centered. */}
-      {selectedBuilding && (!flyMode || flyPaused) && (
+      {selectedBuilding && (!flyMode || flyPaused) && !comparePair && (
         <>
-          {/* Backdrop on mobile — tap to close */}
-          <div
-            className="fixed inset-0 z-[35] sm:hidden"
-            onClick={() => { setSelectedBuilding(null); setFocusedBuilding(null); }}
-          />
-
           {/* Nav hints — only on desktop, bottom-right */}
           <div className="pointer-events-none fixed bottom-6 right-6 z-30 hidden text-right text-[9px] leading-loose text-muted sm:block">
             <div><span className="text-cream">Drag</span> orbit</div>
@@ -1101,7 +1243,7 @@ function HomeContent() {
             sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
           >
             <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
-              w-full sm:w-[320px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
+              w-full max-h-[50vh] overflow-y-auto sm:w-[320px] sm:border-[3px] sm:max-h-[85vh]
               animate-[slide-up_0.2s_ease-out] sm:animate-none"
             >
               {/* Close */}
@@ -1155,7 +1297,7 @@ function HomeContent() {
                   { label: "Repos", value: selectedBuilding.public_repos.toLocaleString() },
                   { label: "Stars", value: selectedBuilding.total_stars.toLocaleString() },
                   { label: "Kudos", value: (selectedBuilding.kudos_count ?? 0).toLocaleString() },
-                  { label: "Lang", value: selectedBuilding.primary_language ?? "—" },
+                  { label: "Visits", value: (selectedBuilding.visit_count ?? 0).toLocaleString() },
                 ].map((s) => (
                   <div key={s.label} className="bg-bg-card p-2 text-center">
                     <div className="text-xs" style={{ color: theme.accent }}>{s.value}</div>
@@ -1202,17 +1344,51 @@ function HomeContent() {
 
               {/* Kudos: give kudos (other's building, logged in) */}
               {session && selectedBuilding.login.toLowerCase() !== authLogin && (
-                <div className="mx-4 mb-3">
+                <div className="relative mx-4 mb-3">
+                  {/* Floating emoji animation on success */}
+                  {kudosSent && (
+                    <div className="pointer-events-none absolute inset-0 overflow-visible">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <span
+                          key={i}
+                          className="kudos-float absolute text-sm"
+                          style={{
+                            left: `${15 + i * 14}%`,
+                            animationDelay: `${i * 0.08}s`,
+                          }}
+                        >
+                          {["👏", "⭐", "💛", "✨", "👏", "⭐"][i]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={handleGiveKudos}
                     disabled={kudosSending || kudosSent}
-                    className="btn-press px-3 py-1.5 text-[9px] text-bg disabled:opacity-50"
+                    className={[
+                      "btn-press w-full py-2 text-[10px] text-bg transition-all duration-300",
+                      kudosSent ? "scale-[1.02]" : "",
+                    ].join(" ")}
                     style={{
                       backgroundColor: kudosSent ? "#39d353" : theme.accent,
-                      boxShadow: `1px 1px 0 0 ${theme.shadow}`,
+                      boxShadow: kudosSent
+                        ? "0 0 12px rgba(57,211,83,0.4)"
+                        : `2px 2px 0 0 ${theme.shadow}`,
                     }}
                   >
-                    {kudosSending ? "..." : kudosSent ? "Kudos Sent!" : "\uD83D\uDC4F Give Kudos"}
+                    {kudosSending ? (
+                      <span className="animate-pulse">Sending...</span>
+                    ) : kudosSent ? (
+                      <span>+1 Kudos!</span>
+                    ) : (
+                      "Give Kudos"
+                    )}
+                  </button>
+                  <button
+                    onClick={handleOpenGift}
+                    className="btn-press mt-1.5 w-full border-[2px] border-border py-1.5 text-[9px] text-cream transition-colors hover:border-border-light"
+                  >
+                    Send Gift
                   </button>
                 </div>
               )}
@@ -1231,6 +1407,22 @@ function HomeContent() {
                     className="btn-press w-full border-[2px] border-border py-1.5 text-center text-[9px] text-cream transition-colors hover:border-border-light"
                   >
                     {copied ? "Copied!" : "\uD83D\uDCCB Copy Invite Link"}
+                  </button>
+                </div>
+              )}
+
+              {/* Compare button */}
+              {!flyMode && (
+                <div className="mx-4 mb-3">
+                  <button
+                    onClick={() => {
+                      setCompareBuilding(selectedBuilding);
+                      setSelectedBuilding(null);
+                      if (!exploreMode) setExploreMode(true);
+                    }}
+                    className="btn-press w-full border-[2px] border-border py-1.5 text-center text-[9px] text-cream transition-colors hover:border-border-light"
+                  >
+                    Compare
                   </button>
                 </div>
               )}
@@ -1278,6 +1470,305 @@ function HomeContent() {
                     </a>
                   </>
                 )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── Compare Pick Prompt ─── */}
+      {compareBuilding && !comparePair && !flyMode && (
+        <div className="fixed top-3 left-1/2 z-40 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-sm sm:top-4 sm:w-auto">
+          <div className="border-[3px] border-border bg-bg-raised/95 px-4 py-2.5 backdrop-blur-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className="blink-dot h-2 w-2 flex-shrink-0"
+                style={{ backgroundColor: theme.accent }}
+              />
+              <span className="text-[10px] text-cream normal-case truncate min-w-0">
+                Comparing <span style={{ color: theme.accent }}>@{compareBuilding.login}</span>
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedBuilding(compareBuilding);
+                  setFocusedBuilding(compareBuilding.login);
+                  setCompareBuilding(null);
+                }}
+                className="ml-1 flex-shrink-0 text-[9px] text-muted transition-colors hover:text-cream"
+              >
+                Cancel
+              </button>
+            </div>
+            {/* Self-compare hint */}
+            {compareSelfHint && (
+              <p className="mt-1 text-[9px] normal-case" style={{ color: "#f85149" }}>
+                Pick a different building to compare
+              </p>
+            )}
+            {/* Search field for compare pick */}
+            <form
+              onSubmit={(e) => { e.preventDefault(); searchUser(); }}
+              className="mt-2 flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (feedback?.type === "error") setFeedback(null);
+                }}
+                placeholder="search username to compare"
+                className="min-w-0 flex-1 border-[2px] border-border bg-bg px-2.5 py-1.5 text-base sm:text-[10px] text-cream outline-none transition-colors placeholder:text-dim"
+                onFocus={(e) => (e.currentTarget.style.borderColor = theme.accent)}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "")}
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={loading || !username.trim()}
+                className="btn-press flex-shrink-0 px-3 py-1.5 text-[10px] text-bg disabled:opacity-40"
+                style={{ backgroundColor: theme.accent }}
+              >
+                {loading ? "_" : "Go"}
+              </button>
+            </form>
+            {feedback && (
+              <div className="mt-1.5">
+                <SearchFeedback feedback={feedback} accentColor={theme.accent} onDismiss={() => setFeedback(null)} onRetry={searchUser} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Comparison Panel ─── */}
+      {comparePair && (
+        <>
+          <div className="pointer-events-auto fixed z-40
+            bottom-0 left-0 right-0
+            sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
+          >
+            <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
+              w-full sm:w-[420px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
+              max-h-[50vh] overflow-y-auto
+              animate-[slide-up_0.2s_ease-out] sm:animate-none"
+            >
+              {/* Close */}
+              <button
+                onClick={() => { setSelectedBuilding(comparePair[0]); setFocusedBuilding(comparePair[0].login); setComparePair(null); setCompareBuilding(null); }}
+                className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream z-10"
+              >
+                ESC
+              </button>
+
+              {/* Drag handle on mobile */}
+              <div className="flex justify-center py-2 sm:hidden">
+                <div className="h-1 w-10 rounded-full bg-border" />
+              </div>
+
+              {/* Avatars with vs + swap */}
+              <div className="flex items-center justify-center gap-3 px-4 pt-2 pb-3 sm:pt-4">
+                <Link href={`/dev/${comparePair[0].login}`} className="text-center min-w-0 group">
+                  {comparePair[0].avatar_url && (
+                    <Image
+                      src={comparePair[0].avatar_url}
+                      alt={comparePair[0].login}
+                      width={40}
+                      height={40}
+                      className="mx-auto border-[2px] border-border transition-colors group-hover:border-border-light"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  )}
+                  <p className="mt-1 truncate text-[9px] text-muted normal-case max-w-[100px] transition-colors group-hover:text-cream">@{comparePair[0].login}</p>
+                </Link>
+
+                {/* Swap button */}
+                <button
+                  onClick={() => setComparePair([comparePair[1], comparePair[0]])}
+                  className="flex flex-col items-center gap-0.5 group"
+                  title="Swap sides"
+                >
+                  <span className="text-sm" style={{ color: theme.accent }}>vs</span>
+                  <span className="text-[8px] text-muted transition-colors group-hover:text-cream">&#8644;</span>
+                </button>
+
+                <Link href={`/dev/${comparePair[1].login}`} className="text-center min-w-0 group">
+                  {comparePair[1].avatar_url && (
+                    <Image
+                      src={comparePair[1].avatar_url}
+                      alt={comparePair[1].login}
+                      width={40}
+                      height={40}
+                      className="mx-auto border-[2px] border-border transition-colors group-hover:border-border-light"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  )}
+                  <p className="mt-1 truncate text-[9px] text-muted normal-case max-w-[100px] transition-colors group-hover:text-cream">@{comparePair[1].login}</p>
+                </Link>
+              </div>
+
+              {/* Stat rows with mirror bar charts */}
+              <div className="px-4 pb-3 space-y-2">
+                {([
+                  { label: "Rank", key: "rank" as const, invert: true },
+                  { label: "Contributions", key: "contributions" as const, invert: false },
+                  { label: "Stars", key: "total_stars" as const, invert: false },
+                  { label: "Repos", key: "public_repos" as const, invert: false },
+                  { label: "Kudos", key: "kudos_count" as const, invert: false },
+                ]).map((stat) => {
+                  const rawA = comparePair[0][stat.key] ?? 0;
+                  const rawB = comparePair[1][stat.key] ?? 0;
+                  const valA = typeof rawA === "number" ? rawA : 0;
+                  const valB = typeof rawB === "number" ? rawB : 0;
+                  const maxVal = Math.max(valA, valB, 1);
+                  const aWins = stat.invert ? (valA > 0 && (valA < valB || valB === 0)) : valA > valB;
+                  const bWins = stat.invert ? (valB > 0 && (valB < valA || valA === 0)) : valB > valA;
+                  const tie = valA === valB;
+
+                  return (
+                    <div key={stat.key}>
+                      <div className="text-[8px] text-muted text-center mb-1">{stat.label}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-12 text-right text-[10px] flex-shrink-0"
+                          style={{ color: aWins || tie ? theme.accent : "#666" }}
+                        >
+                          {stat.key === "rank" ? `#${valA}` : valA.toLocaleString()}
+                        </span>
+                        <div className="flex-1 h-[10px] bg-bg-card border border-border/30 flex justify-end overflow-hidden">
+                          <div
+                            className="h-full transition-all duration-500"
+                            style={{
+                              width: `${stat.invert ? (maxVal > 0 ? ((maxVal - valA + 1) / maxVal) * 100 : 0) : (valA / maxVal) * 100}%`,
+                              backgroundColor: aWins || tie ? theme.accent : "#333",
+                              opacity: aWins || tie ? 0.9 : 0.5,
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 h-[10px] bg-bg-card border border-border/30 flex justify-start overflow-hidden">
+                          <div
+                            className="h-full transition-all duration-500"
+                            style={{
+                              width: `${stat.invert ? (maxVal > 0 ? ((maxVal - valB + 1) / maxVal) * 100 : 0) : (valB / maxVal) * 100}%`,
+                              backgroundColor: bWins || tie ? theme.accent : "#333",
+                              opacity: bWins || tie ? 0.9 : 0.5,
+                            }}
+                          />
+                        </div>
+                        <span
+                          className="w-12 text-left text-[10px] flex-shrink-0"
+                          style={{ color: bWins || tie ? theme.accent : "#666" }}
+                        >
+                          {stat.key === "rank" ? `#${valB}` : valB.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Language row */}
+                <div>
+                  <div className="text-[8px] text-muted text-center mb-1">Language</div>
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px]" style={{ color: theme.accent }}>
+                      {comparePair[0].primary_language ?? "—"}
+                    </span>
+                    <span className="text-[8px] text-muted">vs</span>
+                    <span className="text-[10px]" style={{ color: theme.accent }}>
+                      {comparePair[1].primary_language ?? "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Winner summary */}
+              {(() => {
+                const compareStats: { key: keyof CityBuilding; invert?: boolean }[] = [
+                  { key: "rank", invert: true },
+                  { key: "contributions" },
+                  { key: "total_stars" },
+                  { key: "public_repos" },
+                  { key: "kudos_count" },
+                ];
+                let aWins = 0;
+                let bWins = 0;
+                for (const s of compareStats) {
+                  const a = (comparePair[0][s.key] as number) ?? 0;
+                  const b = (comparePair[1][s.key] as number) ?? 0;
+                  if (s.invert) {
+                    if (a > 0 && (a < b || b === 0)) aWins++;
+                    else if (b > 0 && (b < a || a === 0)) bWins++;
+                  } else {
+                    if (a > b) aWins++;
+                    else if (b > a) bWins++;
+                  }
+                }
+                const isTie = aWins === bWins;
+                const winner = aWins > bWins ? comparePair[0].login : comparePair[1].login;
+                return (
+                  <div className="border-t border-border/30 mx-4 py-3 text-center">
+                    <span className="text-[10px]" style={{ color: theme.accent }}>
+                      {isTie
+                        ? `Tie ${aWins}-${bWins}`
+                        : `@${winner} wins ${Math.max(aWins, bWins)}-${Math.min(aWins, bWins)}`}
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Actions */}
+              <div className="px-4 pb-2 flex gap-2">
+                {/* Share on X */}
+                <a
+                  href={`https://x.com/intent/tweet?text=${encodeURIComponent(
+                    `@${comparePair[0].login} vs @${comparePair[1].login} in Git City by @samuelrizzondev — who has the better building?`
+                  )}&url=${encodeURIComponent(
+                    `${typeof window !== "undefined" ? window.location.origin : ""}/compare/${comparePair[0].login}/${comparePair[1].login}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-press flex-1 py-2 text-center text-[10px] text-bg"
+                  style={{
+                    backgroundColor: theme.accent,
+                    boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+                  }}
+                >
+                  Share on X
+                </a>
+                {/* Copy link */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/compare/${comparePair[0].login}/${comparePair[1].login}`
+                    );
+                    setCompareCopied(true);
+                    setTimeout(() => setCompareCopied(false), 2000);
+                  }}
+                  className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
+                >
+                  {compareCopied ? "Copied!" : "Copy Link"}
+                </button>
+              </div>
+
+              {/* Compare again + Close */}
+              <div className="flex gap-2 px-4 pb-5 sm:pb-4">
+                <button
+                  onClick={() => {
+                    const first = comparePair[0];
+                    setComparePair(null);
+                    setCompareBuilding(first);
+                    setFocusedBuilding(first.login);
+                  }}
+                  className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
+                >
+                  Compare Again
+                </button>
+                <button
+                  onClick={() => { setSelectedBuilding(comparePair[0]); setFocusedBuilding(comparePair[0].login); setComparePair(null); setCompareBuilding(null); }}
+                  className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
@@ -1384,6 +1875,7 @@ function HomeContent() {
         <ActivityTicker
           events={feedEvents}
           onEventClick={(evt) => {
+            if (compareBuilding || comparePair) return;
             const login = evt.actor?.login;
             if (login) {
               setFocusedBuilding(login);
@@ -1398,12 +1890,71 @@ function HomeContent() {
         />
       )}
 
+      {/* ─── Gift Modal ─── */}
+      {giftModalOpen && selectedBuilding && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-bg/70 backdrop-blur-sm"
+            onClick={() => { setGiftModalOpen(false); setGiftItems(null); }}
+          />
+          <div className="relative z-10 w-full max-w-[280px] border-[3px] border-border bg-bg-raised">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div>
+                <h3 className="text-xs" style={{ color: theme.accent }}>Send Gift</h3>
+                <p className="mt-0.5 text-[8px] text-muted normal-case">to @{selectedBuilding.login}</p>
+              </div>
+              <button
+                onClick={() => { setGiftModalOpen(false); setGiftItems(null); }}
+                className="text-xs text-muted hover:text-cream"
+              >
+                &#10005;
+              </button>
+            </div>
+
+            {/* Items */}
+            {giftItems === null ? (
+              <p className="py-8 text-center text-[9px] text-dim normal-case animate-pulse">
+                Loading...
+              </p>
+            ) : giftItems.length === 0 ? (
+              <p className="py-8 text-center text-[9px] text-dim normal-case">
+                Already owns everything!
+              </p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto scrollbar-thin">
+                {giftItems.map((item) => {
+                  const isBuying = giftBuying === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleGiftCheckout(item.id)}
+                      disabled={!!giftBuying}
+                      className="flex w-full items-center gap-3 border-b border-border/30 px-4 py-2.5 text-left transition-colors hover:bg-bg-card/80 disabled:opacity-40"
+                    >
+                      <span className="text-base shrink-0">{ITEM_EMOJIS[item.id] ?? "🎁"}</span>
+                      <span className="flex-1 text-[10px] text-cream">
+                        {ITEM_NAMES[item.id] ?? item.id}
+                      </span>
+                      <span className="text-[10px] shrink-0" style={{ color: theme.accent }}>
+                        {isBuying ? "..." : `$${(item.price_usd_cents / 100).toFixed(2)}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ─── Activity Panel (slide-in) ─── */}
       <ActivityPanel
         initialEvents={feedEvents}
         open={feedPanelOpen}
         onClose={() => setFeedPanelOpen(false)}
         onNavigate={(login) => {
+          if (compareBuilding || comparePair) return;
           setFeedPanelOpen(false);
           setFocusedBuilding(login);
           const found = buildings.find(b => b.login.toLowerCase() === login.toLowerCase());

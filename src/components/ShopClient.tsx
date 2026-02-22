@@ -4,7 +4,14 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ShopItem } from "@/lib/items";
-import LoadoutPanel from "./LoadoutPanel";
+import {
+  ZONE_ITEMS,
+  ZONE_LABELS,
+  ITEM_NAMES,
+  ITEM_EMOJIS,
+  FACES_ITEMS,
+  ACHIEVEMENT_ITEMS,
+} from "@/lib/zones";
 
 /** Must match FREE_CLAIM_ITEM in lib/items.ts */
 const FREE_CLAIM_ITEM = "flag";
@@ -34,25 +41,17 @@ interface Props {
   buildingDims: BuildingDims;
   achievements?: string[];
   initialLoadout?: Loadout | null;
+  purchasedItem?: string | null;
 }
-
-import { ACHIEVEMENT_ITEMS } from "@/lib/zones";
 
 interface PixModalData {
   brCode: string;
   brCodeBase64: string;
   purchaseId: string;
+  itemId: string;
   itemName: string;
   githubLogin: string;
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  effect: "Effects",
-  structure: "Structures",
-  identity: "Identity",
-};
-
-const CATEGORY_ORDER = ["effect", "structure", "identity"];
 
 const ACCENT = "#c8e64a";
 const SHADOW = "#5a7a00";
@@ -556,25 +555,88 @@ export default function ShopClient({
   buildingDims,
   achievements = [],
   initialLoadout = null,
+  purchasedItem = null,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"shop" | "loadout">("shop");
+  // Loadout state
+  const [loadout, setLoadout] = useState<Loadout>(
+    initialLoadout ?? { crown: null, roof: null, aura: null }
+  );
+  const loadoutRef = useRef(loadout);
+  loadoutRef.current = loadout;
+
+  const [owned, setOwned] = useState<string[]>(ownedItems);
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [owned, setOwned] = useState<string[]>(ownedItems);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [highlightItem, setHighlightItem] = useState<string | null>(null);
+  const [confirmBuyItem, setConfirmBuyItem] = useState<string | null>(null);
+
   const [pixModal, setPixModal] = useState<PixModalData | null>(null);
-  const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const [customColor, setCustomColor] = useState<string | null>(initialCustomColor);
   const [billboardImages, setBillboardImages] = useState<string[]>(initialBillboardImages);
   const [billboardSlots, setBillboardSlots] = useState(initialBillboardSlots);
   const [previewColor, setPreviewColor] = useState<string | null>(null);
   const [previewBillboardImages, setPreviewBillboardImages] = useState<string[] | null>(null);
-
   const [autoUploading, setAutoUploading] = useState(false);
+  const [purchaseToast, setPurchaseToast] = useState<string | null>(purchasedItem);
+
+  // Post-purchase: show toast + auto-equip if zone is empty
+  useEffect(() => {
+    if (!purchasedItem) return;
+    // Clear toast after 5s
+    const timer = setTimeout(() => setPurchaseToast(null), 5000);
+    // Auto-equip if the item belongs to a zone and that zone is empty
+    for (const [zone, zoneItems] of Object.entries(ZONE_ITEMS)) {
+      if (zoneItems.includes(purchasedItem)) {
+        const zoneKey = zone as keyof Loadout;
+        setLoadout((prev) => {
+          if (prev[zoneKey]) return prev; // zone already has something equipped
+          return { ...prev, [zoneKey]: purchasedItem };
+        });
+        setHasChanges(true);
+        break;
+      }
+    }
+    // Clean URL param
+    window.history.replaceState({}, "", window.location.pathname);
+    return () => clearTimeout(timer);
+  }, [purchasedItem]);
+
+  // Default loadout for new users: if no initialLoadout and user owns flag, show flag
+  const effectiveLoadout: Loadout = {
+    crown: loadout.crown ?? (!initialLoadout && owned.includes("flag") ? "flag" : null),
+    roof: loadout.roof,
+    aura: loadout.aura,
+  };
+
+  // Dismiss buy confirmation popover on click outside
+  useEffect(() => {
+    if (!confirmBuyItem) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-buy-popover]")) {
+        setConfirmBuyItem(null);
+      }
+    };
+    document.addEventListener("click", handler, true);
+    return () => document.removeEventListener("click", handler, true);
+  }, [confirmBuyItem]);
+
+  // Unsaved changes warning
+  useEffect(() => {
+    if (!hasChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasChanges]);
 
   // Auto-upload pending billboard image after purchase redirect
   useEffect(() => {
     if (billboardSlots <= 0) return;
-    // Only auto-upload if slot 0 has no image yet
     if (billboardImages[0]) return;
 
     const pending = getPendingBillboard();
@@ -600,6 +662,47 @@ export default function ShopClient({
         setAutoUploading(false);
       });
   }, [billboardSlots]); // only run on mount / when slots change
+
+  // ─── Handlers ─────────────────────────────────────────────
+
+  const handleEquip = useCallback((zone: keyof Loadout, itemId: string) => {
+    setLoadout((prev) => ({ ...prev, [zone]: itemId }));
+    setHasChanges(true);
+    setSaved(false);
+    setConfirmBuyItem(null);
+  }, []);
+
+  const handleUnequip = useCallback((zone: keyof Loadout) => {
+    setLoadout((prev) => ({ ...prev, [zone]: null }));
+    setHasChanges(true);
+    setSaved(false);
+    setHighlightItem(null);
+    setConfirmBuyItem(null);
+  }, []);
+
+  const handleSaveLoadout = useCallback(async () => {
+    setSaving(true);
+    setSaved(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/loadout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loadoutRef.current),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setHasChanges(false);
+        setTimeout(() => setSaved(false), 2000);
+      } else {
+        setError("Failed to save. Try again.");
+      }
+    } catch {
+      setError("Failed to save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   const claimFreeItem = useCallback(async () => {
     if (buyingItem) return;
@@ -632,7 +735,7 @@ export default function ShopClient({
   }, [buyingItem]);
 
   const checkout = useCallback(
-    async (itemId: string, provider: "stripe" | "abacatepay") => {
+    async (itemId: string) => {
       if (buyingItem) return;
       setBuyingItem(itemId);
       setError(null);
@@ -641,7 +744,7 @@ export default function ShopClient({
         const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ item_id: itemId, provider, currency: "usd" }),
+          body: JSON.stringify({ item_id: itemId, provider: "stripe", currency: "usd" }),
         });
 
         const data = await res.json();
@@ -663,17 +766,16 @@ export default function ShopClient({
         }
 
         if (data.brCode) {
-          // PIX — show inline modal
           const item = items.find((i) => i.id === itemId);
           setPixModal({
             brCode: data.brCode,
             brCodeBase64: data.brCodeBase64,
             purchaseId: data.purchase_id,
+            itemId,
             itemName: item?.name ?? "Item",
             githubLogin,
           });
         } else if (data.url) {
-          // Stripe — redirect
           window.location.href = data.url;
         }
       } catch {
@@ -687,16 +789,14 @@ export default function ShopClient({
 
   const handlePixCompleted = useCallback(
     (_purchaseId: string) => {
-      // Find which item was just purchased
       if (pixModal) {
-        const item = items.find((i) => i.name === pixModal.itemName);
-        if (item) {
+        const itemId = pixModal.itemId;
+        if (itemId) {
           setOwned((prev) =>
-            prev.includes(item.id) ? prev : [...prev, item.id]
+            prev.includes(itemId) ? prev : [...prev, itemId]
           );
-          if (item.id === "billboard") {
+          if (itemId === "billboard") {
             setBillboardSlots((prev) => prev + 1);
-            // Auto-upload pending billboard image after PIX confirmation
             const pending = getPendingBillboard();
             if (pending) {
               const file = dataUrlToFile(pending.data, pending.name, pending.type);
@@ -720,11 +820,22 @@ export default function ShopClient({
     [pixModal, items]
   );
 
-  const grouped = CATEGORY_ORDER.map((cat) => ({
-    category: cat,
-    label: CATEGORY_LABELS[cat],
-    items: items.filter((i) => i.category === cat),
-  })).filter((g) => g.items.length > 0);
+  // ─── Helpers ─────────────────────────────────────────────
+
+  /** Find the zone a given item belongs to (crown/roof/aura) */
+  function getItemZone(itemId: string): keyof Loadout | null {
+    for (const [zone, zoneItems] of Object.entries(ZONE_ITEMS)) {
+      if (zoneItems.includes(itemId)) return zone as keyof Loadout;
+    }
+    return null;
+  }
+
+  /** Get the ShopItem record for an item_id */
+  function getShopItem(itemId: string): ShopItem | undefined {
+    return items.find((i) => i.id === itemId);
+  }
+
+  // ─── Empty state ─────────────────────────────────────────
 
   if (items.length === 0) {
     return (
@@ -734,8 +845,50 @@ export default function ShopClient({
     );
   }
 
+  // ─── Render ───────────────────────────────────────────────
+
+  const ownedFacesItems = owned.filter((id) => FACES_ITEMS.includes(id));
+
+  const saveButton = (
+    <button
+      onClick={handleSaveLoadout}
+      disabled={!hasChanges || saving}
+      className="btn-press w-full py-2.5 text-xs text-bg disabled:opacity-40"
+      style={{
+        backgroundColor: saved ? "#39d353" : ACCENT,
+        boxShadow: `2px 2px 0 0 ${SHADOW}`,
+      }}
+    >
+      {saving ? "Saving..." : saved ? "Saved!" : "Save Loadout"}
+    </button>
+  );
+
   return (
     <>
+      {/* Purchase success toast */}
+      {purchaseToast && (
+        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2">
+          <div
+            className="flex items-center gap-2 border-[3px] px-5 py-2.5 text-[10px] text-bg"
+            style={{ backgroundColor: ACCENT, borderColor: SHADOW }}
+          >
+            <span className="text-base">{ITEM_EMOJIS[purchaseToast] ?? "🎉"}</span>
+            <span>{ITEM_NAMES[purchaseToast] ?? purchaseToast} purchased! Equip it below.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Checkout loading overlay */}
+      {buyingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="border-[3px] border-border bg-bg p-6 text-center">
+            <div className="mb-3 text-2xl animate-pulse">{ITEM_EMOJIS[buyingItem] ?? "🛒"}</div>
+            <p className="text-xs text-cream">Redirecting to checkout...</p>
+            <p className="mt-1 text-[9px] text-muted normal-case">Please wait</p>
+          </div>
+        </div>
+      )}
+
       {/* PIX Modal */}
       {pixModal && (
         <PixModal
@@ -745,206 +898,312 @@ export default function ShopClient({
         />
       )}
 
-      {/* Tab Switcher */}
-      <div className="mb-4 flex gap-2">
-        {(["shop", "loadout"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="px-4 py-2 text-xs border-[3px] transition-colors"
-            style={{
-              borderColor: activeTab === tab ? ACCENT : "var(--color-border)",
-              color: activeTab === tab ? ACCENT : "var(--color-muted)",
-              backgroundColor: activeTab === tab ? "rgba(200, 230, 74, 0.1)" : "transparent",
-            }}
-          >
-            {tab === "shop" ? "Shop" : "Loadout"}
-          </button>
-        ))}
-      </div>
-
-      {/* Loadout Tab */}
-      {activeTab === "loadout" && (
-        <LoadoutPanel ownedItems={owned} initialLoadout={initialLoadout} />
+      {error && (
+        <div className="mb-4 border-[2px] border-red-500/30 bg-red-500/10 px-3 py-2 text-[10px] text-red-400 normal-case">
+          {error}
+        </div>
       )}
 
-      {/* Shop Tab */}
-      {activeTab === "shop" && (
+      {/* Desktop: 2 columns */}
       <div className="lg:flex lg:gap-6">
-        {/* Left column: items card */}
-        <div className="min-w-0 flex-1">
-          {/* Mobile-only preview */}
-          <div className="mb-5 lg:hidden">
+        {/* Left column: Preview (sticky on desktop) */}
+        <div className="lg:w-[420px] lg:shrink-0">
+          <div className="lg:sticky lg:top-6">
             <ShopPreview
-              previewItemId={previewItemId}
-              ownedItems={owned}
+              loadout={effectiveLoadout}
+              ownedFacesItems={ownedFacesItems}
               customColor={previewColor ?? customColor}
               billboardImages={previewBillboardImages ?? billboardImages}
               buildingDims={buildingDims}
+              highlightItemId={highlightItem}
             />
+            {/* Save button (desktop, below preview) */}
+            <div className="hidden lg:block mt-4">
+              {saveButton}
+            </div>
           </div>
+        </div>
 
-          <div className="border-[3px] border-border bg-bg-raised p-4 sm:p-6">
-            {error && (
-              <div className="mb-4 border-[2px] border-red-500/30 bg-red-500/10 px-3 py-2 text-[10px] text-red-400 normal-case">
-                {error}
-              </div>
-            )}
+        {/* Right column: Zones */}
+        <div className="mt-5 lg:mt-0 min-w-0 flex-1 space-y-5">
+          {/* Zone sections: CROWN, ROOF, AURA */}
+          {(Object.entries(ZONE_ITEMS) as [string, string[]][]).map(([zone, zoneItemIds]) => {
+            const zoneKey = zone as keyof Loadout;
+            const equippedId = effectiveLoadout[zoneKey];
+            const equippedName = equippedId ? (ITEM_NAMES[equippedId] ?? equippedId) : "None";
 
-            <div className="space-y-6">
-              {grouped.map((group) => (
-                <div key={group.category}>
-                  <h3 className="mb-3 text-sm" style={{ color: ACCENT }}>
-                    {group.label}
+            return (
+              <div key={zone} className="border-[3px] border-border bg-bg-raised p-4">
+                {/* Zone header */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm" style={{ color: ACCENT }}>
+                    {ZONE_LABELS[zone] ?? zone}
                   </h3>
-                  <div className="space-y-2">
-                    {group.items.map((item) => {
-                      const isOwned = owned.includes(item.id);
-                      const isBuying = buyingItem === item.id;
-                      const isBillboard = item.id === "billboard";
-                      const isFreeItem = item.id === FREE_CLAIM_ITEM;
-                      // Billboard can be bought multiple times
-                      const showBuyButton = isBillboard || !isOwned;
-                      const achUnlock = ACHIEVEMENT_ITEMS[item.id];
-                      const isAchUnlockable = achUnlock && !isOwned;
-                      const hasAchievement = achUnlock && achievements.includes(achUnlock.achievement);
+                  <span className="text-[9px] text-muted normal-case">
+                    equipped: {equippedName}
+                  </span>
+                </div>
 
-                      return (
-                        <div key={item.id}>
-                          <div
-                            className="flex items-center justify-between border-[2px] border-border bg-bg-card px-4 py-3 transition-colors hover:border-border-light"
-                            style={
-                              previewItemId === item.id
-                                ? { borderLeftColor: ACCENT, borderLeftWidth: 3 }
-                                : undefined
-                            }
-                            onMouseEnter={() => setPreviewItemId(item.id)}
-                            onMouseLeave={() => setPreviewItemId(null)}
+                {/* Item cards grid */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {zoneItemIds.map((itemId) => {
+                    const isOwned = owned.includes(itemId);
+                    const isEquipped = equippedId === itemId;
+                    const shopItem = getShopItem(itemId);
+                    const isFreeItem = itemId === FREE_CLAIM_ITEM;
+                    const achUnlock = ACHIEVEMENT_ITEMS[itemId];
+                    const hasAchievement = achUnlock && achievements.includes(achUnlock.achievement);
+                    const isBuying = buyingItem === itemId;
+
+                    // Badge text
+                    let badge: string;
+                    let badgeColor: string;
+                    if (isEquipped) {
+                      badge = "EQUIPPED";
+                      badgeColor = "#39d353";
+                    } else if (isOwned) {
+                      badge = "\u2713";
+                      badgeColor = ACCENT;
+                    } else if (isFreeItem) {
+                      badge = "FREE";
+                      badgeColor = ACCENT;
+                    } else if (achUnlock && !shopItem?.price_usd_cents) {
+                      badge = hasAchievement ? "Unlockable!" : achUnlock.label.split("(")[0].trim();
+                      badgeColor = hasAchievement ? "#39d353" : "#a0a0b0";
+                    } else if (shopItem) {
+                      badge = formatPrice(shopItem);
+                      badgeColor = "#a0a0b0";
+                    } else {
+                      badge = "";
+                      badgeColor = "#a0a0b0";
+                    }
+
+                    const isConfirming = confirmBuyItem === itemId;
+
+                    // Click handler
+                    const handleClick = () => {
+                      if (isEquipped) {
+                        handleUnequip(zoneKey);
+                      } else if (isOwned) {
+                        handleEquip(zoneKey, itemId);
+                      } else if (isFreeItem) {
+                        claimFreeItem();
+                      } else if (shopItem && shopItem.price_usd_cents > 0) {
+                        // Toggle confirm popover instead of going straight to checkout
+                        setConfirmBuyItem(isConfirming ? null : itemId);
+                      }
+                      // Achievement-only locked items: no action (just hint)
+                    };
+
+                    return (
+                      <div key={itemId} className="relative" data-buy-popover>
+                        <button
+                          onClick={handleClick}
+                          disabled={isBuying}
+                          onMouseEnter={() => setHighlightItem(itemId)}
+                          onMouseLeave={() => setHighlightItem(null)}
+                          className={[
+                            "flex flex-col items-center justify-center p-2 transition-all w-full aspect-square",
+                            isEquipped ? "border-[3px]" : "border-[2px]",
+                            isEquipped ? "border-[#39d353]" : isConfirming ? "border-[var(--color-border-light)]" : "border-border",
+                            isEquipped ? "bg-[rgba(57,211,83,0.1)]" : "bg-bg-card",
+                            !isOwned && !isEquipped ? "opacity-60" : "",
+                            "hover:border-border-light",
+                          ].join(" ")}
+                        >
+                          <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                          <span className="mt-1 text-[9px] text-cream truncate w-full text-center">
+                            {ITEM_NAMES[itemId] ?? itemId}
+                          </span>
+                          <span
+                            className="mt-0.5 text-[8px]"
+                            style={{ color: badgeColor }}
                           >
-                            <div className="mr-3 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-cream">{item.name}</span>
-                                {isOwned && !isBillboard && (
-                                  <span
-                                    className="px-1.5 py-0.5 text-[10px] text-bg"
-                                    style={{ backgroundColor: ACCENT }}
-                                  >
-                                    Owned
-                                  </span>
-                                )}
-                                {isBillboard && billboardSlots > 0 && (
-                                  <span
-                                    className="px-1.5 py-0.5 text-[10px] text-bg"
-                                    style={{ backgroundColor: ACCENT }}
-                                  >
-                                    x{billboardSlots}
-                                  </span>
-                                )}
-                              </div>
-                              {item.description && (
-                                <p className="mt-0.5 text-xs text-muted normal-case">
-                                  {item.description}
-                                </p>
-                              )}
-                              {isAchUnlockable && (
-                                <p className="mt-1 text-[9px] normal-case" style={{ color: hasAchievement ? "#39d353" : "#a0a0b0" }}>
-                                  {hasAchievement ? "Unlockable free via achievement!" : `Unlock: ${achUnlock.label}`}
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {isFreeItem && !isOwned ? (
-                                <>
-                                  <span className="mr-1 text-sm font-bold" style={{ color: ACCENT }}>
-                                    FREE
-                                  </span>
-                                  <button
-                                    onClick={claimFreeItem}
-                                    disabled={isBuying || !!buyingItem}
-                                    className="btn-press w-16 px-3 py-1.5 text-xs text-bg disabled:opacity-40"
-                                    style={{
-                                      backgroundColor: ACCENT,
-                                      boxShadow: `2px 2px 0 0 ${SHADOW}`,
-                                    }}
-                                  >
-                                    {isBuying ? "..." : "Claim"}
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="mr-1 text-sm text-muted">
-                                    {formatPrice(item)}
-                                  </span>
-                                  {!showBuyButton ? (
-                                    <span className="w-14 text-center text-xs text-muted">
-                                      &#10003;
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={() => checkout(item.id, "stripe")}
-                                      disabled={isBuying || !!buyingItem}
-                                      className="btn-press w-16 px-3 py-1.5 text-xs text-bg disabled:opacity-40"
-                                      style={{
-                                        backgroundColor: ACCENT,
-                                        boxShadow: `2px 2px 0 0 ${SHADOW}`,
-                                      }}
-                                    >
-                                      {isBuying ? "..." : isBillboard && billboardSlots > 0 ? "Buy +1" : "Buy"}
-                                    </button>
-                                  )}
-                                </>
-                              )}
+                            {isBuying ? "..." : badge}
+                          </span>
+                        </button>
+
+                        {/* Buy confirmation popover */}
+                        {isConfirming && shopItem && (
+                          <div data-buy-popover className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 w-36 border-[2px] border-border bg-bg p-2 shadow-lg">
+                            <p className="text-[9px] text-cream text-center mb-1.5">
+                              {ITEM_NAMES[itemId]}
+                            </p>
+                            <p className="text-[10px] text-center mb-2" style={{ color: ACCENT }}>
+                              {formatPrice(shopItem)}
+                            </p>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }}
+                                className="flex-1 border-[2px] border-border py-1 text-[9px] text-muted hover:text-cream"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }}
+                                disabled={isBuying}
+                                className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40"
+                                style={{ backgroundColor: ACCENT, boxShadow: `1px 1px 0 0 ${SHADOW}` }}
+                              >
+                                {isBuying ? "..." : "Buy"}
+                              </button>
                             </div>
                           </div>
-
-                          {/* Customization panels — always visible */}
-                          {item.id === "custom_color" && (
-                            <ColorPickerPanel
-                              currentColor={customColor}
-                              isOwned={isOwned}
-                              onColorChange={(c) => setPreviewColor(c)}
-                              onSaved={(c) => { setCustomColor(c); setPreviewColor(null); }}
-                            />
-                          )}
-                          {isBillboard && (
-                            <BillboardUploadPanel
-                              images={previewBillboardImages ?? billboardImages}
-                              slotCount={billboardSlots}
-                              isOwned={billboardSlots > 0}
-                              autoUploading={autoUploading}
-                              onImagesChange={(imgs) => { setBillboardImages(imgs); setPreviewBillboardImages(null); }}
-                              onPreviewChange={(imgs) => setPreviewBillboardImages(imgs)}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+            );
+          })}
+
+          {/* FACES zone */}
+          <div className="border-[3px] border-border bg-bg-raised p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm" style={{ color: ACCENT }}>
+                Faces
+              </h3>
+              <span className="text-[9px] text-muted normal-case">
+                always active if owned
+              </span>
             </div>
 
-            {/* Payment method note */}
-            <p className="mt-5 text-center text-[10px] text-dim normal-case">
-              Payment via Stripe
-            </p>
-          </div>
-        </div>
+            {/* Faces item cards */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-3">
+              {FACES_ITEMS.map((itemId) => {
+                const isOwned = owned.includes(itemId);
+                const shopItem = getShopItem(itemId);
+                const isBillboard = itemId === "billboard";
+                const achUnlock = ACHIEVEMENT_ITEMS[itemId];
+                const hasAchievement = achUnlock && achievements.includes(achUnlock.achievement);
+                const isBuying = buyingItem === itemId;
 
-        {/* Right column: desktop sticky preview */}
-        <div className="hidden lg:block lg:w-[420px] lg:shrink-0">
-          <div className="sticky top-6">
-            <ShopPreview
-              previewItemId={previewItemId}
-              ownedItems={owned}
-              customColor={previewColor ?? customColor}
-              billboardImages={previewBillboardImages ?? billboardImages}
-              buildingDims={buildingDims}
-            />
+                let badge: string;
+                let badgeColor: string;
+                if (isOwned && !isBillboard) {
+                  badge = "\u2713";
+                  badgeColor = ACCENT;
+                } else if (isBillboard && billboardSlots > 0) {
+                  badge = `x${billboardSlots}`;
+                  badgeColor = ACCENT;
+                } else if (achUnlock && !shopItem?.price_usd_cents) {
+                  badge = hasAchievement ? "Unlockable!" : achUnlock.label.split("(")[0].trim();
+                  badgeColor = hasAchievement ? "#39d353" : "#a0a0b0";
+                } else if (shopItem) {
+                  badge = formatPrice(shopItem);
+                  badgeColor = "#a0a0b0";
+                } else {
+                  badge = "";
+                  badgeColor = "#a0a0b0";
+                }
+
+                const isConfirming = confirmBuyItem === itemId;
+                const isFacesOwned = isOwned || (isBillboard && billboardSlots > 0);
+
+                const handleClick = () => {
+                  if (isBillboard && isFacesOwned) {
+                    // Already owned, scroll to upload — no action needed on card
+                    return;
+                  }
+                  if (isOwned) return; // faces items don't equip/unequip
+                  if (shopItem && shopItem.price_usd_cents > 0) {
+                    setConfirmBuyItem(isConfirming ? null : itemId);
+                  }
+                };
+
+                return (
+                  <div key={itemId} className="relative" data-buy-popover>
+                    <button
+                      onClick={handleClick}
+                      disabled={isBuying}
+                      onMouseEnter={() => setHighlightItem(itemId)}
+                      onMouseLeave={() => setHighlightItem(null)}
+                      className={[
+                        "flex flex-col items-center justify-center p-2 transition-all w-full aspect-square",
+                        isFacesOwned ? "border-[3px] border-[#39d353] bg-[rgba(57,211,83,0.1)]" : "border-[2px] border-border bg-bg-card opacity-60",
+                        isConfirming ? "border-[var(--color-border-light)]" : "",
+                        "hover:border-border-light",
+                      ].join(" ")}
+                    >
+                      <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                      <span className="mt-1 text-[9px] text-cream truncate w-full text-center">
+                        {ITEM_NAMES[itemId] ?? itemId}
+                      </span>
+                      <span
+                        className="mt-0.5 text-[8px]"
+                        style={{ color: badgeColor }}
+                      >
+                        {isBuying ? "..." : badge}
+                      </span>
+                    </button>
+
+                    {/* Buy confirmation popover */}
+                    {isConfirming && shopItem && (
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 w-36 border-[2px] border-border bg-bg p-2 shadow-lg">
+                        <p className="text-[9px] text-cream text-center mb-1.5">
+                          {ITEM_NAMES[itemId]}
+                        </p>
+                        <p className="text-[10px] text-center mb-2" style={{ color: ACCENT }}>
+                          {formatPrice(shopItem)}
+                        </p>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }}
+                            className="flex-1 border-[2px] border-border py-1 text-[9px] text-muted hover:text-cream"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }}
+                            disabled={isBuying}
+                            className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40"
+                            style={{ backgroundColor: ACCENT, boxShadow: `1px 1px 0 0 ${SHADOW}` }}
+                          >
+                            {isBuying ? "..." : "Buy"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Color picker (if custom_color exists in items) */}
+            {items.some((i) => i.id === "custom_color") && (
+              <ColorPickerPanel
+                currentColor={customColor}
+                isOwned={owned.includes("custom_color")}
+                onColorChange={(c) => setPreviewColor(c)}
+                onSaved={(c) => { setCustomColor(c); setPreviewColor(null); }}
+              />
+            )}
+
+            {/* Billboard upload */}
+            {items.some((i) => i.id === "billboard") && (
+              <BillboardUploadPanel
+                images={previewBillboardImages ?? billboardImages}
+                slotCount={billboardSlots}
+                isOwned={billboardSlots > 0}
+                autoUploading={autoUploading}
+                onImagesChange={(imgs) => { setBillboardImages(imgs); setPreviewBillboardImages(null); }}
+                onPreviewChange={(imgs) => setPreviewBillboardImages(imgs)}
+              />
+            )}
           </div>
+
+          {/* Payment note */}
+          <p className="text-center text-[10px] text-dim normal-case">
+            Payment via Stripe
+          </p>
         </div>
       </div>
-      )}
+
+      {/* Mobile: Save sticky bottom */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-bg border-t-[3px] border-border lg:hidden">
+        {saveButton}
+      </div>
     </>
   );
 }

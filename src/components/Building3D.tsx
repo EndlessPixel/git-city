@@ -290,7 +290,7 @@ function FocusBeacon({ height, width, depth, accentColor }: { height: number; wi
 
 // ─── Loadout-Aware Effect Rendering ──────────────────────────
 
-function BuildingItemEffects({ building, accentColor }: { building: CityBuilding; accentColor: string }) {
+function BuildingItemEffects({ building, accentColor, focused }: { building: CityBuilding; accentColor: string; focused?: boolean }) {
   const { height, width, depth, owned_items, loadout, billboard_images } = building;
   const items = owned_items ?? [];
 
@@ -320,15 +320,13 @@ function BuildingItemEffects({ building, accentColor }: { building: CityBuilding
 
   return (
     <>
-      {/* Legacy items (keep rendering for existing owners) */}
+      {/* Aura zone */}
       {shouldRenderZone("neon_outline") && (
         <NeonOutline width={width} height={height} depth={depth} color={accentColor} />
       )}
       {shouldRenderZone("particle_aura") && (
         <ParticleAura width={width} height={height} depth={depth} color={accentColor} />
       )}
-
-      {/* Aura zone */}
       {shouldRenderZone("spotlight") && (
         <SpotlightEffect height={height} width={width} depth={depth} color={accentColor} />
       )}
@@ -338,7 +336,7 @@ function BuildingItemEffects({ building, accentColor }: { building: CityBuilding
         <RooftopFire height={height} width={width} depth={depth} />
       )}
       {shouldRenderZone("antenna_array") && (
-        <AntennaArray height={height} />
+        <AntennaArray height={height} width={width} depth={depth} />
       )}
       {shouldRenderZone("rooftop_garden") && (
         <RooftopGarden height={height} width={width} depth={depth} />
@@ -352,7 +350,7 @@ function BuildingItemEffects({ building, accentColor }: { building: CityBuilding
         <Spire height={height} width={width} depth={depth} />
       )}
       {shouldRenderZone("flag") && (
-        <Flag height={height} color={accentColor} />
+        <Flag height={height} width={width} depth={depth} color={accentColor} />
       )}
 
       {/* New aura zone items */}
@@ -371,7 +369,7 @@ function BuildingItemEffects({ building, accentColor }: { building: CityBuilding
         <SatelliteDish height={height} width={width} depth={depth} color={accentColor} />
       )}
       {shouldRenderZone("crown_item") && (
-        <CrownItem height={height} color={accentColor} />
+        <CrownItem height={height} color={accentColor} focused={focused} />
       )}
 
       {/* New roof zone items */}
@@ -503,6 +501,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       mat.emissiveIntensity = dimmed ? 0.3 : (mat.map ? 2.0 : 1.5);
     }
     labelMaterial.opacity = focused ? 0 : dimmed ? 0.15 : 1;
+    if (spriteRef.current) spriteRef.current.visible = !focused;
     // Reset group visibility when un-dimming
     if (!dimmed && groupRef.current) {
       groupRef.current.visible = true;
@@ -543,7 +542,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       {focused && <FocusBeacon height={building.height} width={building.width} depth={building.depth} accentColor={accentColor ?? "#c8e64a"} />}
 
       {/* Loadout-aware effect rendering */}
-      <BuildingItemEffects building={building} accentColor={accentColor ?? colors.accent ?? "#c8e64a"} />
+      <BuildingItemEffects building={building} accentColor={accentColor ?? colors.accent ?? "#c8e64a"} focused={focused} />
     </group>
   );
 }

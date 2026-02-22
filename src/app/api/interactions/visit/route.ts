@@ -82,6 +82,32 @@ export async function POST(request: Request) {
 
   if (!insertError) {
     await admin.rpc("increment_visit_count", { target_dev_id: building.id });
+
+    // Check if building crossed visit milestone (>10 visits today)
+    const { count: todayVisits } = await admin
+      .from("building_visits")
+      .select("visitor_id", { count: "exact", head: true })
+      .eq("building_id", building.id)
+      .eq("visit_date", today);
+
+    if ((todayVisits ?? 0) >= 10) {
+      // Only insert once per building per day
+      const { data: existing } = await admin
+        .from("activity_feed")
+        .select("id")
+        .eq("event_type", "visit_milestone")
+        .eq("target_id", building.id)
+        .gte("created_at", `${today}T00:00:00Z`)
+        .maybeSingle();
+
+      if (!existing) {
+        await admin.from("activity_feed").insert({
+          event_type: "visit_milestone",
+          target_id: building.id,
+          metadata: { login: building_login.toLowerCase(), visit_count: todayVisits },
+        });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

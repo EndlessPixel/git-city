@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     sb
       .from("developers")
       .select(
-        "id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, claimed, kudos_count"
+        "id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, claimed, kudos_count, visit_count"
       )
       .order("rank", { ascending: true })
       .range(from, to - 1),
@@ -97,6 +97,7 @@ export async function GET(request: Request) {
   const developersWithItems = devs.map((dev) => ({
     ...dev,
     kudos_count: dev.kudos_count ?? 0,
+    visit_count: dev.visit_count ?? 0,
     owned_items: ownedItemsMap[dev.id] ?? [],
     custom_color: customColorMap[dev.id] ?? null,
     billboard_images: billboardImagesMap[dev.id] ?? [],

@@ -1,10 +1,10 @@
 // ─── Shared zone & item constants ────────────────────────────
-// Single source of truth — imported by Building3D, LoadoutPanel, loadout API, ShopPreview
+// Single source of truth — imported by Building3D, ShopClient, loadout API, ShopPreview
 
 export const ZONE_ITEMS: Record<string, string[]> = {
   crown: ["flag", "helipad", "spire", "satellite_dish", "crown_item"],
   roof: ["antenna_array", "rooftop_garden", "rooftop_fire", "pool_party"],
-  aura: ["neon_trim", "spotlight", "hologram_ring", "lightning_aura"],
+  aura: ["neon_trim", "spotlight", "hologram_ring", "lightning_aura", "neon_outline", "particle_aura"],
 };
 
 export const ZONE_LABELS: Record<string, string> = {
@@ -13,16 +13,13 @@ export const ZONE_LABELS: Record<string, string> = {
   aura: "Aura",
 };
 
-// Legacy items: not in any zone, not equippable, only render if already owned + equipped
-export const LEGACY_ITEMS = ["neon_outline", "particle_aura"];
-
 export const ITEM_NAMES: Record<string, string> = {
   flag: "Flag",
   helipad: "Helipad",
-  spire: "Spire",
+  spire: "Water Tower",
   satellite_dish: "Satellite Dish",
   crown_item: "Crown",
-  antenna_array: "Antenna Array",
+  antenna_array: "Solar Panels",
   rooftop_garden: "Rooftop Garden",
   rooftop_fire: "Rooftop Fire",
   pool_party: "Pool Party",
@@ -47,3 +44,13 @@ export const ACHIEVEMENT_ITEMS: Record<string, { achievement: string; label: str
   spotlight: { achievement: "rising_star", label: "Rising Star (10+ stars)" },
   helipad: { achievement: "recruiter", label: "Recruiter (3+ referrals)" },
 };
+
+export const ITEM_EMOJIS: Record<string, string> = {
+  flag: "🏁", helipad: "🚁", spire: "🪣", satellite_dish: "📡", crown_item: "👑",
+  antenna_array: "☀️", rooftop_garden: "🌿", rooftop_fire: "🔥", pool_party: "🏊",
+  neon_trim: "💡", spotlight: "🔦", hologram_ring: "💫", lightning_aura: "⚡",
+  custom_color: "🎨", billboard: "📺", led_banner: "🪧",
+  neon_outline: "🔮", particle_aura: "✨",
+};
+
+export const FACES_ITEMS = ["custom_color", "billboard", "led_banner"];

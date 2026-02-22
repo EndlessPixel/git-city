@@ -69,11 +69,21 @@ export async function POST(request: Request) {
           const githubLogin = session.metadata?.github_login;
           const giftedTo = session.metadata?.gifted_to;
           if (giftedTo) {
+            // Fetch receiver login for feed event
+            const { data: receiver } = await sb
+              .from("developers")
+              .select("github_login")
+              .eq("id", Number(giftedTo))
+              .single();
             await sb.from("activity_feed").insert({
               event_type: "gift_sent",
               actor_id: Number(developerId),
               target_id: Number(giftedTo),
-              metadata: { giver_login: githubLogin, item_id: itemId },
+              metadata: {
+                giver_login: githubLogin,
+                receiver_login: receiver?.github_login ?? "unknown",
+                item_id: itemId,
+              },
             });
           } else {
             await sb.from("activity_feed").insert({

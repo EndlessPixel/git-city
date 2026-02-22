@@ -35,6 +35,14 @@ function formatEvent(e: FeedEvent): string {
       return `\u{1F381} ${meta.giver_login ? `@${meta.giver_login}` : actor} gifted ${meta.item_id ?? "an item"} to ${meta.receiver_login ? `@${meta.receiver_login}` : target}`;
     case "dev_joined":
       return `\u{1F3D7} ${meta.login ? `@${meta.login}` : actor} joined the city`;
+    case "visit_milestone":
+      return `\u{1F440} ${meta.login ? `@${meta.login}` : target}'s building got ${meta.visit_count ?? "many"} visits today`;
+    case "item_equipped":
+      return `\u{2694}\u{FE0F} ${meta.login ? `@${meta.login}` : actor} equipped ${meta.item_id ?? "an item"}`;
+    case "rank_up":
+      return `\u{1F4C8} ${meta.login ? `@${meta.login}` : actor} climbed to #${meta.new_rank ?? "?"}`;
+    case "leaderboard_change":
+      return `\u{1F451} ${meta.login ? `@${meta.login}` : actor} entered top ${meta.position ?? 3}!`;
     default:
       return `${actor} did something cool`;
   }

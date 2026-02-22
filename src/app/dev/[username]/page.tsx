@@ -80,6 +80,14 @@ export default async function DevPage({ params }: Props) {
     tier: (a.achievements as Record<string, unknown>)?.tier as string ?? "bronze",
   }));
 
+  // Fetch referred developers (who this dev brought to the city)
+  const { data: referredDevs } = await sb
+    .from("developers")
+    .select("github_login, avatar_url")
+    .eq("referred_by", dev.github_login)
+    .order("claimed_at", { ascending: false })
+    .limit(20);
+
   // Check if the logged-in user owns this building
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -177,8 +185,8 @@ export default async function DevPage({ params }: Props) {
             { label: "Repos", value: dev.public_repos.toLocaleString() },
             { label: "Stars", value: dev.total_stars.toLocaleString() },
             { label: "Kudos", value: (dev.kudos_count ?? 0).toLocaleString() },
+            { label: "Visits", value: (dev.visit_count ?? 0).toLocaleString() },
             { label: "Referrals", value: (dev.referral_count ?? 0).toLocaleString() },
-            { label: "Language", value: dev.primary_language ?? "—" },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -234,6 +242,37 @@ export default async function DevPage({ params }: Props) {
                 >
                   {ITEM_NAMES[itemId] ?? itemId}
                 </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Referred Developers */}
+        {referredDevs && referredDevs.length > 0 && (
+          <div className="mt-5">
+            <h2 className="mb-3 text-sm text-cream">
+              Invited Devs
+              <span className="ml-2 text-[10px] text-muted">{dev.referral_count ?? referredDevs.length}</span>
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {referredDevs.map((rd) => (
+                <Link
+                  key={rd.github_login}
+                  href={`/dev/${rd.github_login}`}
+                  className="flex items-center gap-2 border-[2px] border-border px-3 py-1.5 text-[10px] text-muted transition-colors hover:border-border-light hover:text-cream"
+                >
+                  {rd.avatar_url && (
+                    <Image
+                      src={rd.avatar_url}
+                      alt={rd.github_login}
+                      width={16}
+                      height={16}
+                      className="border border-border"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  )}
+                  @{rd.github_login}
+                </Link>
               ))}
             </div>
           </div>

@@ -50,8 +50,8 @@ export async function POST(request: Request) {
     .eq("github_login", receiver_login.toLowerCase())
     .single();
 
-  if (!receiver || !receiver.claimed) {
-    return NextResponse.json({ error: "Receiver must have claimed building" }, { status: 400 });
+  if (!receiver) {
+    return NextResponse.json({ error: "Receiver not found" }, { status: 404 });
   }
 
   // No self-kudos

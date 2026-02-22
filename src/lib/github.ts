@@ -45,6 +45,7 @@ export interface CityBuilding {
   billboard_images?: string[];
   achievements: string[];
   kudos_count: number;
+  visit_count: number;
   loadout?: { crown: string | null; roof: string | null; aura: string | null } | null;
   position: [number, number, number];
   width: number;
@@ -113,24 +114,69 @@ const CELL_SPACING = 50; // spacing between buildings within a block
 // Spiral slots that become plazas instead of building blocks
 const PLAZA_SLOTS = new Set([3, 7, 12, 18, 25, 33, 42]);
 
-const MAX_BUILDING_HEIGHT = 800;
+const MAX_BUILDING_HEIGHT = 600;
+const MIN_BUILDING_HEIGHT = 10;
+const HEIGHT_RANGE = MAX_BUILDING_HEIGHT - MIN_BUILDING_HEIGHT; // 590
 
-function calcHeight(contributions: number, maxContrib: number): number {
-  // Cap reference so one outlier doesn't flatten the entire city
-  const effectiveMax = Math.min(maxContrib, 15_000);
-  const K = 300 / Math.sqrt(Math.max(1, effectiveMax));
-  return Math.min(MAX_BUILDING_HEIGHT, 12 + Math.sqrt(contributions) * K);
+function calcHeight(
+  contributions: number,
+  totalStars: number,
+  publicRepos: number,
+  maxContrib: number,
+  maxStars: number,
+): { height: number; composite: number } {
+  const effMaxC = Math.min(maxContrib, 20_000);
+  const effMaxS = Math.min(maxStars, 200_000);
+
+  // Normalize to 0-1 (can exceed 1 for outliers)
+  const cNorm = contributions / Math.max(1, effMaxC);
+  const sNorm = totalStars / Math.max(1, effMaxS);
+  const rNorm = Math.min(publicRepos / 200, 1);
+
+  // Power curves — exponent < 1 compresses, > 0.5 gives more contrast than sqrt
+  const cScore = Math.pow(Math.min(cNorm, 3), 0.55);   // contributions (allow up to 3x max)
+  const sScore = Math.pow(Math.min(sNorm, 3), 0.45);   // stars (more generous curve)
+  const rScore = Math.pow(rNorm, 0.5);                   // repos
+
+  // Weights: contributions dominate, but stars matter a lot
+  const composite = cScore * 0.55 + sScore * 0.35 + rScore * 0.10;
+
+  const height = Math.min(MAX_BUILDING_HEIGHT, MIN_BUILDING_HEIGHT + composite * HEIGHT_RANGE);
+  return { height, composite };
 }
+
+export interface CityRiver {
+  x: number;
+  width: number;
+  length: number;
+  centerZ: number;
+}
+
+export interface CityBridge {
+  position: [number, number, number];
+  width: number;
+}
+
+const RIVER_WIDTH = 60;
 
 export function generateCityLayout(devs: DeveloperRecord[]): {
   buildings: CityBuilding[];
   plazas: CityPlaza[];
   decorations: CityDecoration[];
+  river: CityRiver;
+  bridges: CityBridge[];
 } {
   const buildings: CityBuilding[] = [];
   const plazas: CityPlaza[] = [];
   const decorations: CityDecoration[] = [];
   const maxContrib = devs[0]?.contributions || 1;
+  const maxStars = devs.reduce((max, d) => Math.max(max, d.total_stars), 1);
+
+  // River runs along Z axis, cutting through X
+  const blockSpacing0 = CELL_SPACING * BLOCK_SIZE_DOWNTOWN + STREET_WIDTH;
+  const riverX = -(blockSpacing0 * 1.5); // between spiral ring 1 and 2
+  const riverMinX = riverX;
+  const riverMaxX = riverX + RIVER_WIDTH;
 
   let devIndex = 0;
   let spiralIndex = 0;
@@ -181,8 +227,11 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       const posX = blockCenterX + offsetX;
       const posZ = blockCenterZ + offsetZ;
 
-      // Height with dramatic scaling
-      const height = calcHeight(dev.contributions, maxContrib);
+      // Skip buildings that overlap the river
+      if (posX + 20 > riverMinX && posX - 20 < riverMaxX) continue;
+
+      // Height with composite score (contributions + stars + repos)
+      const { height, composite } = calcHeight(dev.contributions, dev.total_stars, dev.public_repos, maxContrib, maxStars);
 
       // Width/depth: base from repos, variance from seed
       const seed1 = hashStr(dev.github_login);
@@ -196,9 +245,8 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       const windowsPerFloor = Math.max(3, Math.floor(w / 5));
       const sideWindowsPerFloor = Math.max(3, Math.floor(d / 5));
 
-      // Lit percentage proportional to contributions
-      const contribRatio = dev.contributions / maxContrib;
-      const litPercentage = 0.2 + contribRatio * 0.7;
+      // Lit percentage proportional to composite importance score
+      const litPercentage = 0.2 + composite * 0.7;
 
       buildings.push({
         login: dev.github_login,
@@ -215,6 +263,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
         billboard_images: dev.billboard_images ?? [],
         achievements: (dev as unknown as Record<string, unknown>).achievements as string[] ?? [],
         kudos_count: (dev as unknown as Record<string, unknown>).kudos_count as number ?? 0,
+        visit_count: (dev as unknown as Record<string, unknown>).visit_count as number ?? 0,
         loadout: (dev as unknown as Record<string, unknown>).loadout as CityBuilding["loadout"] ?? null,
         position: [posX, 0, posZ],
         width: w,
@@ -230,14 +279,20 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
     // ── Per-block decorations ──
     const blockFootprint = CELL_SPACING * blockSize;
 
-    // Sidewalk around block
-    decorations.push({
-      type: 'sidewalk',
-      position: [blockCenterX, 0.05, blockCenterZ],
-      rotation: 0,
-      variant: 0,
-      size: [blockFootprint + 8, blockFootprint + 8],
-    });
+    // Sidewalk around block (skip if block overlaps river)
+    const blockLeft = blockCenterX - blockFootprint / 2 - 4;
+    const blockRight = blockCenterX + blockFootprint / 2 + 4;
+    const blockInRiver = blockRight > riverMinX && blockLeft < riverMaxX;
+
+    if (!blockInRiver) {
+      decorations.push({
+        type: 'sidewalk',
+        position: [blockCenterX, 0.05, blockCenterZ],
+        rotation: 0,
+        variant: 0,
+        size: [blockFootprint + 8, blockFootprint + 8],
+      });
+    }
 
     // Street lamps (2-4 per block)
     const lampCount = 2 + Math.floor(seededRandom(spiralIndex * 311) * 3);
@@ -250,6 +305,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       else if (edge === 1) { lx += blockFootprint / 2 + 4; lz += along; }
       else if (edge === 2) { lz += blockFootprint / 2 + 4; lx += along; }
       else { lx -= blockFootprint / 2 + 4; lz += along; }
+      if (lx > riverMinX - 5 && lx < riverMaxX + 5) continue; // skip river zone
       decorations.push({
         type: 'streetLamp',
         position: [lx, 0, lz],
@@ -259,14 +315,19 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
     }
 
     // Parked cars (0-1 per building, ~50% chance)
+    const blockBuildingCount = buildings.length;
     for (let bi = 0; bi < blockDevs.length; bi++) {
-      const bld = buildings[buildings.length - blockDevs.length + bi];
+      const bldIdx = blockBuildingCount - blockDevs.length + bi;
+      if (bldIdx < 0 || bldIdx >= buildings.length) continue;
+      const bld = buildings[bldIdx];
       const carSeed = hashStr(blockDevs[bi].github_login) + 777;
       if (seededRandom(carSeed) > 0.5) {
         const side = seededRandom(carSeed + 1) > 0.5 ? 1 : -1;
+        const carX = bld.position[0] + side * (bld.width / 2 + 4);
+        if (carX > riverMinX - 5 && carX < riverMaxX + 5) continue; // skip river zone
         decorations.push({
           type: 'car',
-          position: [bld.position[0] + side * (bld.width / 2 + 4), 0, bld.position[2]],
+          position: [carX, 0, bld.position[2]],
           rotation: seededRandom(carSeed + 2) > 0.5 ? 0 : Math.PI,
           variant: Math.floor(seededRandom(carSeed + 3) * 4),
         });
@@ -284,6 +345,7 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
       else if (edge === 1) { tx += blockFootprint / 2 + 6; tz += along; }
       else if (edge === 2) { tz += blockFootprint / 2 + 6; tx += along; }
       else { tx -= blockFootprint / 2 + 6; tz += along; }
+      if (tx > riverMinX - 5 && tx < riverMaxX + 5) continue; // skip river zone
       decorations.push({
         type: 'tree',
         position: [tx, 0, tz],
@@ -341,7 +403,25 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
     }
   }
 
-  return { buildings, plazas, decorations };
+  // ── River data — length matches city extent ──
+  let minZ = 0, maxZ = 0;
+  for (const b of buildings) {
+    if (b.position[2] < minZ) minZ = b.position[2];
+    if (b.position[2] > maxZ) maxZ = b.position[2];
+  }
+  const riverPadding = 80; // small overshoot past last buildings
+  const riverLength = (maxZ - minZ) + riverPadding * 2;
+  const riverCenterZ = (minZ + maxZ) / 2;
+  const river: CityRiver = { x: riverX, width: RIVER_WIDTH, length: riverLength, centerZ: riverCenterZ };
+
+  // ── Bridges (2: one near downtown, one further out) ──
+  const bridgeWidth = RIVER_WIDTH + 20; // extends 10 past each bank
+  const bridges: CityBridge[] = [
+    { position: [riverX + RIVER_WIDTH / 2, 0, 0], width: bridgeWidth },
+    { position: [riverX + RIVER_WIDTH / 2, 0, blockSpacing0 * 3], width: bridgeWidth },
+  ];
+
+  return { buildings, plazas, decorations, river, bridges };
 }
 
 // ─── Building Dimensions (reusable for shop preview) ────────
@@ -350,9 +430,11 @@ export function calcBuildingDims(
   githubLogin: string,
   contributions: number,
   publicRepos: number,
-  maxContrib: number
+  totalStars: number,
+  maxContrib: number,
+  maxStars: number,
 ): { width: number; height: number; depth: number } {
-  const height = calcHeight(contributions, maxContrib);
+  const { height } = calcHeight(contributions, totalStars, publicRepos, maxContrib, maxStars);
   const seed1 = hashStr(githubLogin);
   const repoFactor = Math.min(1, publicRepos / 100);
   const baseW = 14 + repoFactor * 16;

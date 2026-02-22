@@ -75,17 +75,17 @@ export default async function LeaderboardPage({
       counts[row.developer_id] = (counts[row.developer_id] ?? 0) + 1;
     }
 
-    // Get all devs and sort by achievement count
+    // Get all devs and sort by achievement count, tiebreak by created_at
     const { data: allDevs } = await supabase
       .from("developers")
-      .select("id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank")
+      .select("id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, referral_count, kudos_count, created_at")
       .order("contributions", { ascending: false })
       .limit(500);
 
     const sorted = (allDevs ?? [])
       .map((d) => ({ ...d, ach_count: counts[d.id] ?? 0 }))
       .filter((d) => d.ach_count > 0)
-      .sort((a, b) => b.ach_count - a.ach_count)
+      .sort((a, b) => b.ach_count - a.ach_count || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       .slice(0, 50);
 
     devs = sorted as unknown as Developer[];
@@ -97,6 +97,7 @@ export default async function LeaderboardPage({
       .from("developers")
       .select("github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
       .order(orderColumn, { ascending: false })
+      .order("created_at", { ascending: true })
       .limit(50);
     devs = (data ?? []) as Developer[];
   }
@@ -125,17 +126,35 @@ export default async function LeaderboardPage({
         .single();
       if (userData) {
         userRow = userData as Developer;
-        // Calculate position
-        const metricValue = activeTab === "contributors" ? userData.contributions
-          : activeTab === "stars" ? userData.total_stars
-          : activeTab === "architects" ? userData.public_repos
-          : activeTab === "recruiters" ? ((userData as Record<string, unknown>).referral_count as number ?? 0)
-          : 0;
-        const { count } = await supabase
-          .from("developers")
-          .select("id", { count: "exact", head: true })
-          .gt(orderColumn, metricValue);
-        userPosition = (count ?? 0) + 1;
+        if (activeTab === "achievers") {
+          // Count how many devs have more achievements
+          const userAchCount = achieverCounts[userData.github_login] ?? 0;
+          let pos = 1;
+          for (const [, count] of Object.entries(achieverCounts)) {
+            if (count > userAchCount) pos++;
+          }
+          userPosition = pos;
+          if (!achieverCounts[userData.github_login]) {
+            // User has 0 achievements — fetch their count
+            const { count: achCount } = await supabase
+              .from("developer_achievements")
+              .select("id", { count: "exact", head: true })
+              .eq("developer_id", (userData as Record<string, unknown>).id);
+            achieverCounts[userData.github_login] = achCount ?? 0;
+          }
+        } else {
+          // Calculate position via count of devs with higher metric
+          const metricValue = activeTab === "contributors" ? userData.contributions
+            : activeTab === "stars" ? userData.total_stars
+            : activeTab === "architects" ? userData.public_repos
+            : activeTab === "recruiters" ? ((userData as Record<string, unknown>).referral_count as number ?? 0)
+            : 0;
+          const { count } = await supabase
+            .from("developers")
+            .select("id", { count: "exact", head: true })
+            .gt(orderColumn, metricValue);
+          userPosition = (count ?? 0) + 1;
+        }
       }
     }
   }

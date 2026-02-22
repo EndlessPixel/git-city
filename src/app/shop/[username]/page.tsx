@@ -11,6 +11,7 @@ import ShopClient from "@/components/ShopClient";
 
 interface Props {
   params: Promise<{ username: string }>;
+  searchParams: Promise<{ purchased?: string }>;
 }
 
 async function getDeveloper(username: string) {
@@ -50,8 +51,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 const ACCENT = "#c8e64a";
 
-export default async function ShopPage({ params }: Props) {
+export default async function ShopPage({ params, searchParams }: Props) {
   const { username } = await params;
+  const { purchased: purchasedItem } = await searchParams;
   const dev = await getDeveloper(username);
 
   if (!dev) notFound();
@@ -103,7 +105,7 @@ export default async function ShopPage({ params }: Props) {
 
   const sb = getSupabaseAdmin();
 
-  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult, achievementsResult, loadoutResult] = await Promise.all([
+  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult, topStarsResult, achievementsResult, loadoutResult] = await Promise.all([
     getActiveItems(),
     getOwnedItems(dev.id),
     sb
@@ -124,6 +126,12 @@ export default async function ShopPage({ params }: Props) {
       .limit(1)
       .single(),
     sb
+      .from("developers")
+      .select("total_stars")
+      .order("total_stars", { ascending: false })
+      .limit(1)
+      .single(),
+    sb
       .from("developer_achievements")
       .select("achievement_id")
       .eq("developer_id", dev.id),
@@ -140,11 +148,14 @@ export default async function ShopPage({ params }: Props) {
 
   const billboardSlots = billboardPurchasesResult.count ?? 0;
   const maxContrib = topDevResult.data?.contributions ?? dev.contributions;
+  const maxStars = topStarsResult.data?.total_stars ?? dev.total_stars;
   const buildingDims = calcBuildingDims(
     dev.github_login,
     dev.contributions,
     dev.public_repos,
-    maxContrib
+    dev.total_stars,
+    maxContrib,
+    maxStars,
   );
 
   // Extract customization values
@@ -210,6 +221,7 @@ export default async function ShopPage({ params }: Props) {
           buildingDims={buildingDims}
           achievements={achievements}
           initialLoadout={initialLoadout}
+          purchasedItem={purchasedItem ?? null}
         />
 
         {/* Back links */}

@@ -24,6 +24,7 @@ import {
   LEDBanner,
 } from "./BuildingEffects";
 import type { BuildingDims } from "./ShopClient";
+import { ZONE_ITEMS } from "@/lib/zones";
 
 const ACCENT = "#c8e64a";
 
@@ -92,7 +93,7 @@ function EffectForItem({
     case "helipad":
       return <Helipad {...dims} />;
     case "antenna_array":
-      return <AntennaArray height={dims.height} />;
+      return <AntennaArray {...dims} />;
     case "rooftop_garden":
       return <RooftopGarden {...dims} />;
     case "spire":
@@ -100,7 +101,7 @@ function EffectForItem({
     case "billboard":
       return <Billboards {...dims} images={billboardImages ?? []} />;
     case "flag":
-      return <Flag height={dims.height} />;
+      return <Flag {...dims} />;
     case "neon_trim":
       return <NeonTrim {...dims} color={ACCENT} />;
     case "satellite_dish":
@@ -133,18 +134,26 @@ function Ground({ y, size }: { y: number; size: number }) {
 
 // ─── Scene ───────────────────────────────────────────────────
 
+interface Loadout {
+  crown: string | null;
+  roof: string | null;
+  aura: string | null;
+}
+
 function ShopPreviewScene({
-  previewItemId,
-  ownedItems,
+  loadout,
+  ownedFacesItems,
   customColor,
   billboardImages,
   dims,
+  highlightItemId,
 }: {
-  previewItemId: string | null;
-  ownedItems: string[];
+  loadout: Loadout;
+  ownedFacesItems: string[];
   customColor: string | null;
   billboardImages: string[];
   dims: BuildingDims;
+  highlightItemId?: string | null;
 }) {
   const { width: W, height: H, depth: D } = dims;
   const groupRef = useRef<THREE.Group>(null);
@@ -153,9 +162,9 @@ function ShopPreviewScene({
   // Custom color: use picked/saved color, or accent demo on hover, or no tint
   const tint = useMemo(() => {
     if (customColor) return customColor;
-    if (previewItemId === "custom_color") return ACCENT;
+    if (highlightItemId === "custom_color") return ACCENT;
     return "#ffffff";
-  }, [previewItemId, customColor]);
+  }, [highlightItemId, customColor]);
 
   // Gentle idle bob
   useFrame((state) => {
@@ -198,18 +207,20 @@ function ShopPreviewScene({
 
         {/* Effects use y=0 as ground, so offset them */}
         <group position={[0, -H / 2, 0]}>
-          {/* Always show owned effects (except billboard, handled separately) */}
-          {ownedItems
-            .filter((id) => id !== "billboard")
-            .map((id) => <EffectForItem key={id} itemId={id} dims={dims} />)}
+          {/* Zone items: highlight replaces equipped item in the same zone */}
+          {(["crown", "roof", "aura"] as const).map((zone) => {
+            const equipped = loadout[zone];
+            // If highlight belongs to this zone, show it instead of equipped
+            const highlightInZone = highlightItemId && ZONE_ITEMS[zone]?.includes(highlightItemId);
+            const showId = highlightInZone ? highlightItemId : equipped;
+            return showId ? <EffectForItem key={zone} itemId={showId} dims={dims} /> : null;
+          })}
 
-          {/* Hovered item preview — only if not already owned (avoid duplicate) */}
-          {previewItemId && previewItemId !== "custom_color" && previewItemId !== "billboard" && !ownedItems.includes(previewItemId) && (
-            <EffectForItem itemId={previewItemId} dims={dims} />
+          {/* Faces: always render if owned (same as Building3D) */}
+          {ownedFacesItems.includes("led_banner") && (
+            <EffectForItem itemId="led_banner" dims={dims} />
           )}
-
-          {/* Billboard: always render stably to avoid texture reload flicker */}
-          {(billboardImages.length > 0 || ownedItems.includes("billboard") || previewItemId === "billboard") && (
+          {(billboardImages.length > 0 || ownedFacesItems.includes("billboard")) && (
             <EffectForItem itemId="billboard" dims={dims} billboardImages={billboardImages} />
           )}
         </group>
@@ -221,17 +232,19 @@ function ShopPreviewScene({
 // ─── Canvas wrapper (default export) ─────────────────────────
 
 export default function ShopPreview({
-  previewItemId,
-  ownedItems,
+  loadout,
+  ownedFacesItems,
   customColor,
   billboardImages,
   buildingDims,
+  highlightItemId,
 }: {
-  previewItemId: string | null;
-  ownedItems: string[];
+  loadout: { crown: string | null; roof: string | null; aura: string | null };
+  ownedFacesItems: string[];
   customColor: string | null;
   billboardImages: string[];
   buildingDims?: BuildingDims;
+  highlightItemId?: string | null;
 }) {
   const dims = buildingDims ?? DEFAULT_DIMS;
   // Camera distance adapts to building size
@@ -245,17 +258,18 @@ export default function ShopPreview({
           gl={{ antialias: false }}
         >
           <ShopPreviewScene
-            previewItemId={previewItemId}
-            ownedItems={ownedItems}
+            loadout={loadout}
+            ownedFacesItems={ownedFacesItems}
             customColor={customColor}
             billboardImages={billboardImages}
             dims={dims}
+            highlightItemId={highlightItemId}
           />
         </Canvas>
       </div>
       <div className="absolute bottom-2 left-2 right-2 flex flex-col items-center gap-1 pointer-events-none">
         <span className="bg-bg/80 px-2 py-0.5 text-[9px] text-muted">
-          {previewItemId ? "PREVIEW" : "HOVER AN ITEM TO PREVIEW"}
+          {highlightItemId ? "PREVIEW" : "HOVER AN ITEM TO PREVIEW"}
         </span>
         <span className="bg-bg/80 px-2 py-0.5 text-[9px] text-muted normal-case">
           Scroll: zoom · Drag: rotate · Right-drag: move

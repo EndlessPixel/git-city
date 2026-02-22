@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useState, useEffect, useCallback } from "react";
+import { useRef, useMemo, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -119,8 +119,8 @@ export function ParticleAura({
   );
 }
 
-// ─── Spotlight ───────────────────────────────────────────────
-// Thick light beam shooting to sky, visible from far
+// ─── Searchlights (was Spotlight) ────────────────────────────
+// 2 circus-style beams shooting straight up from rooftop
 
 export function SpotlightEffect({
   height,
@@ -133,43 +133,86 @@ export function SpotlightEffect({
   depth: number;
   color?: string;
 }) {
-  const glowRef = useRef<THREE.Mesh>(null);
+  const beam1 = useRef<THREE.Group>(null);
+  const beam2 = useRef<THREE.Group>(null);
+
+  const beamH = height * 3;
+  const topR = Math.max(width, depth) * 0.4;
+  const spread = Math.max(width, depth) * 0.25;
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    if (glowRef.current) {
-      const mat = glowRef.current.material as THREE.MeshStandardMaterial;
-      mat.emissiveIntensity = 3 + Math.sin(t * 1.5) * 1;
+    // Beams sway slightly like real searchlights
+    if (beam1.current) {
+      beam1.current.rotation.x = Math.sin(t * 0.4) * 0.08;
+      beam1.current.rotation.z = Math.cos(t * 0.3) * 0.06;
+    }
+    if (beam2.current) {
+      beam2.current.rotation.x = Math.cos(t * 0.35) * 0.07;
+      beam2.current.rotation.z = Math.sin(t * 0.45) * 0.08;
     }
   });
 
-  const baseRadius = Math.max(width, depth) * 0.5;
+  const beamMat = (
+    <meshBasicMaterial
+      color={color}
+      transparent
+      opacity={0.1}
+      blending={THREE.AdditiveBlending}
+      depthWrite={false}
+      side={THREE.DoubleSide}
+    />
+  );
+
+  const glowMat = (
+    <meshBasicMaterial
+      color={color}
+      transparent
+      opacity={0.04}
+      blending={THREE.AdditiveBlending}
+      depthWrite={false}
+      side={THREE.DoubleSide}
+    />
+  );
 
   return (
-    <group>
-      {/* Bright glow disc on rooftop */}
-      <mesh ref={glowRef} position={[0, height + 0.5, 0]}>
-        <cylinderGeometry args={[baseRadius, baseRadius * 1.2, 1.5, 16]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={3}
-          toneMapped={false}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
-      {/* Outer soft halo */}
-      <mesh position={[0, height + 0.8, 0]}>
-        <cylinderGeometry args={[baseRadius * 1.5, baseRadius * 2, 0.5, 16]} />
-        <meshBasicMaterial
-          color={color}
-          transparent
-          opacity={0.15}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+    <group position={[0, height, 0]}>
+      {/* Beam 1 */}
+      <group ref={beam1} position={[-spread, 0, -spread * 0.5]}>
+        {/* Projector box base */}
+        <mesh position={[0, 0.6, 0]}>
+          <boxGeometry args={[2, 1.2, 2]} />
+          <meshStandardMaterial color="#333340" metalness={0.7} roughness={0.3} />
+        </mesh>
+        {/* Inner beam */}
+        <mesh position={[0, beamH / 2 + 1, 0]}>
+          <coneGeometry args={[topR, beamH, 8, 1, true]} />
+          {beamMat}
+        </mesh>
+        {/* Outer glow */}
+        <mesh position={[0, beamH / 2 + 1, 0]}>
+          <coneGeometry args={[topR * 1.6, beamH * 0.95, 8, 1, true]} />
+          {glowMat}
+        </mesh>
+        <pointLight position={[0, 1.5, 0]} color={color} intensity={20} distance={40} />
+      </group>
+
+      {/* Beam 2 */}
+      <group ref={beam2} position={[spread, 0, spread * 0.5]}>
+        <mesh position={[0, 0.6, 0]}>
+          <boxGeometry args={[2, 1.2, 2]} />
+          <meshStandardMaterial color="#333340" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, beamH / 2 + 1, 0]}>
+          <coneGeometry args={[topR, beamH, 8, 1, true]} />
+          {beamMat}
+        </mesh>
+        <mesh position={[0, beamH / 2 + 1, 0]}>
+          <coneGeometry args={[topR * 1.6, beamH * 0.95, 8, 1, true]} />
+          {glowMat}
+        </mesh>
+        <pointLight position={[0, 1.5, 0]} color={color} intensity={20} distance={40} />
+      </group>
     </group>
   );
 }
@@ -245,7 +288,7 @@ export function RooftopFire({
 }
 
 // ─── Helipad ─────────────────────────────────────────────────
-// Flat cylinder on rooftop with "H" marking
+// Flat cylinder on rooftop with "H" marking + glowing border
 
 export function Helipad({
   height,
@@ -256,10 +299,27 @@ export function Helipad({
   width: number;
   depth: number;
 }) {
-  const padSize = Math.min(width, depth) * 0.6;
+  const borderRef = useRef<THREE.Mesh>(null);
+  const padSize = Math.min(width, depth) * 0.35;
+
+  useFrame((state) => {
+    if (!borderRef.current) return;
+    const mat = borderRef.current.material as THREE.MeshStandardMaterial;
+    mat.emissiveIntensity = 2 + Math.sin(state.clock.elapsedTime * 2) * 0.8;
+  });
 
   return (
-    <group position={[0, height + 0.5, 0]}>
+    <group position={[-width * 0.45, height + 0.5, depth * 0.45]}>
+      {/* Glowing border ring */}
+      <mesh ref={borderRef} position={[0, 0.3, 0]}>
+        <torusGeometry args={[padSize / 2 + 0.3, 0.4, 8, 24]} />
+        <meshStandardMaterial
+          color="#ff4444"
+          emissive="#ff4444"
+          emissiveIntensity={2}
+          toneMapped={false}
+        />
+      </mesh>
       {/* Pad base */}
       <mesh>
         <cylinderGeometry args={[padSize / 2, padSize / 2, 1, 16]} />
@@ -291,66 +351,106 @@ export function Helipad({
           emissiveIntensity={1}
         />
       </mesh>
+      {/* Corner lights */}
+      {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
+        <pointLight
+          key={i}
+          position={[
+            Math.cos(angle) * (padSize / 2 + 0.3),
+            0.8,
+            Math.sin(angle) * (padSize / 2 + 0.3),
+          ]}
+          color="#ff4444"
+          intensity={5}
+          distance={15}
+        />
+      ))}
     </group>
   );
 }
 
-// ─── Antenna Array ───────────────────────────────────────────
-// Multiple thin cylinders with blinking tip lights
+// ─── Solar Panels (was Antenna Array) ────────────────────────
+// 2×3 grid of tilted solar panels on rooftop center
 
 export function AntennaArray({
   height,
+  width,
+  depth,
 }: {
   height: number;
+  width: number;
+  depth: number;
 }) {
-  const lightRef = useRef<THREE.Group>(null);
+  const panelRef = useRef<THREE.Group>(null);
   const frameCount = useRef(0);
 
   useFrame((state) => {
-    if (!lightRef.current) return;
+    if (!panelRef.current) return;
     frameCount.current++;
-    if (frameCount.current % 3 !== 0) return;
+    if (frameCount.current % 4 !== 0) return;
     const t = state.clock.elapsedTime;
-    lightRef.current.children.forEach((child, i) => {
-      if ((child as THREE.Mesh).material) {
-        const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-        mat.emissiveIntensity = Math.sin(t * 3 + i * 1.5) > 0.3 ? 4 : 0.2;
+    panelRef.current.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.material) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat.emissiveIntensity !== undefined) {
+          mat.emissiveIntensity = 0.3 + Math.sin(t * 0.8) * 0.15;
+        }
       }
     });
   });
 
-  const antennas = [
-    { x: -3, z: -2, h: 12 },
-    { x: 2, z: -3, h: 16 },
-    { x: -1, z: 3, h: 10 },
-    { x: 4, z: 1, h: 14 },
-  ];
+  const panelW = 3;
+  const panelD = 2;
+  const cols = 3;
+  const rows = 2;
+  const gapX = 0.6;
+  const gapZ = 0.5;
+  const totalW = cols * panelW + (cols - 1) * gapX;
+  const totalD = rows * panelD + (rows - 1) * gapZ;
 
   return (
     <group position={[0, height, 0]}>
-      {antennas.map((a, i) => (
-        <group key={i} position={[a.x, 0, a.z]}>
-          {/* Antenna pole */}
-          <mesh position={[0, a.h / 2, 0]}>
-            <cylinderGeometry args={[0.3, 0.5, a.h, 6]} />
-            <meshStandardMaterial color="#666677" metalness={0.8} roughness={0.3} />
-          </mesh>
-        </group>
-      ))}
-      {/* Blinking tip lights */}
-      <group ref={lightRef}>
-        {antennas.map((a, i) => (
-          <mesh key={i} position={[a.x, a.h + 0.5, a.z]}>
-            <sphereGeometry args={[0.8, 8, 8]} />
-            <meshStandardMaterial
-              color="#ff2222"
-              emissive="#ff0000"
-              emissiveIntensity={4}
-              toneMapped={false}
-            />
-          </mesh>
-        ))}
+      {/* Metal frame base */}
+      <mesh position={[0, 0.3, 0]}>
+        <boxGeometry args={[totalW + 1.5, 0.4, totalD + 1.5]} />
+        <meshStandardMaterial color="#555566" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Solar panels 2×3 grid */}
+      <group ref={panelRef}>
+        {Array.from({ length: rows }).flatMap((_, r) =>
+          Array.from({ length: cols }).map((_, c) => {
+            const x = -totalW / 2 + panelW / 2 + c * (panelW + gapX);
+            const z = -totalD / 2 + panelD / 2 + r * (panelD + gapZ);
+            return (
+              <mesh
+                key={`${r}-${c}`}
+                position={[x, 1.2, z]}
+                rotation={[-0.44, 0, 0]} // ~25° tilt
+              >
+                <boxGeometry args={[panelW, 0.2, panelD]} />
+                <meshStandardMaterial
+                  color="#223355"
+                  emissive="#334477"
+                  emissiveIntensity={0.3}
+                  metalness={0.8}
+                  roughness={0.2}
+                />
+              </mesh>
+            );
+          })
+        )}
       </group>
+      {/* Support struts under each row */}
+      {Array.from({ length: rows }).map((_, r) => {
+        const z = -totalD / 2 + panelD / 2 + r * (panelD + gapZ);
+        return (
+          <mesh key={`strut-${r}`} position={[0, 0.7, z]}>
+            <boxGeometry args={[totalW, 0.2, 0.2]} />
+            <meshStandardMaterial color="#555566" metalness={0.6} roughness={0.4} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }
@@ -367,23 +467,51 @@ export function RooftopGarden({
   width: number;
   depth: number;
 }) {
-  const trees = useMemo(() => {
-    const result = [];
-    const count = 3 + Math.floor(Math.random() * 3);
-    const hw = width * 0.32;
-    const hd = depth * 0.32;
+  const hw = width * 0.32;
+  const hd = depth * 0.32;
+
+  const { trees, bushes, flowers } = useMemo(() => {
     const greens = ["#2d5a1e", "#1e6b2e", "#39d353"];
-    for (let i = 0; i < count; i++) {
-      result.push({
+    const flowerColors = ["#ff69b4", "#ffdd44", "#ffffff", "#ff9999", "#ddaaff"];
+
+    // Trees: 4-6, varied sizes
+    const treeCount = 4 + Math.floor(Math.random() * 3);
+    const treeList = [];
+    for (let i = 0; i < treeCount; i++) {
+      treeList.push({
         x: (Math.random() - 0.5) * hw * 2,
         z: (Math.random() - 0.5) * hd * 2,
-        trunkH: 2 + Math.random() * 2,
-        canopySize: 3 + Math.random() * 2,
+        trunkH: 1.5 + Math.random() * 3,
+        canopySize: 2.5 + Math.random() * 2.5,
         color: greens[i % greens.length],
       });
     }
-    return result;
-  }, [width, depth]);
+
+    // Bushes: 4-6 flat green spheres
+    const bushCount = 4 + Math.floor(Math.random() * 3);
+    const bushList = [];
+    for (let i = 0; i < bushCount; i++) {
+      bushList.push({
+        x: (Math.random() - 0.5) * hw * 2,
+        z: (Math.random() - 0.5) * hd * 2,
+        size: 1 + Math.random() * 1,
+        color: greens[Math.floor(Math.random() * greens.length)],
+      });
+    }
+
+    // Flowers: 6-10 tiny colorful spheres
+    const flowerCount = 6 + Math.floor(Math.random() * 5);
+    const flowerList = [];
+    for (let i = 0; i < flowerCount; i++) {
+      flowerList.push({
+        x: (Math.random() - 0.5) * hw * 2,
+        z: (Math.random() - 0.5) * hd * 2,
+        color: flowerColors[Math.floor(Math.random() * flowerColors.length)],
+      });
+    }
+
+    return { trees: treeList, bushes: bushList, flowers: flowerList };
+  }, [hw, hd]);
 
   return (
     <group position={[0, height, 0]}>
@@ -394,38 +522,48 @@ export function RooftopGarden({
       </mesh>
       {/* Cubic Minecraft-style trees */}
       {trees.map((t, i) => (
-        <group key={i} position={[t.x, 0.8, t.z]}>
-          {/* Trunk (box, not cylinder) */}
+        <group key={`t${i}`} position={[t.x, 0.8, t.z]}>
+          {/* Trunk */}
           <mesh position={[0, t.trunkH / 2, 0]}>
             <boxGeometry args={[1.2, t.trunkH, 1.2]} />
             <meshStandardMaterial color="#5a3a1a" />
           </mesh>
-          {/* Foliage (stacked cubes like Minecraft) */}
+          {/* Foliage */}
           <mesh position={[0, t.trunkH + t.canopySize / 2 - 0.5, 0]}>
             <boxGeometry args={[t.canopySize, t.canopySize, t.canopySize]} />
-            <meshStandardMaterial
-              color={t.color}
-              emissive={t.color}
-              emissiveIntensity={0.3}
-            />
+            <meshStandardMaterial color={t.color} emissive={t.color} emissiveIntensity={0.3} />
           </mesh>
           {/* Small top cube */}
           <mesh position={[0, t.trunkH + t.canopySize + 0.5, 0]}>
             <boxGeometry args={[t.canopySize * 0.6, t.canopySize * 0.5, t.canopySize * 0.6]} />
-            <meshStandardMaterial
-              color={t.color}
-              emissive={t.color}
-              emissiveIntensity={0.3}
-            />
+            <meshStandardMaterial color={t.color} emissive={t.color} emissiveIntensity={0.3} />
           </mesh>
         </group>
+      ))}
+      {/* Bushes — flat squished cubes */}
+      {bushes.map((b, i) => (
+        <mesh key={`b${i}`} position={[b.x, 0.8 + b.size * 0.35, b.z]}>
+          <boxGeometry args={[b.size * 1.4, b.size * 0.7, b.size * 1.4]} />
+          <meshStandardMaterial color={b.color} emissive={b.color} emissiveIntensity={0.2} />
+        </mesh>
+      ))}
+      {/* Flowers — tiny colorful cubes */}
+      {flowers.map((f, i) => (
+        <mesh key={`f${i}`} position={[f.x, 1.1, f.z]}>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshStandardMaterial
+            color={f.color}
+            emissive={f.color}
+            emissiveIntensity={0.8}
+          />
+        </mesh>
       ))}
     </group>
   );
 }
 
-// ─── Spire ───────────────────────────────────────────────────
-// Tall cone tapering from rooftop (Empire State style)
+// ─── Water Tower (was Spire) ─────────────────────────────────
+// Pixel water tower on corner of rooftop
 
 export function Spire({
   height,
@@ -436,31 +574,65 @@ export function Spire({
   width: number;
   depth: number;
 }) {
-  const spireHeight = Math.min(width, depth) * 1.5;
-  const baseRadius = Math.min(width, depth) * 0.12;
+  const legH = 8;
+  const tankR = 4;
+  const tankH = 4;
 
   return (
-    <group position={[0, height, 0]}>
-      {/* Base platform */}
-      <mesh position={[0, 1, 0]}>
-        <boxGeometry args={[baseRadius * 5, 2, baseRadius * 5]} />
-        <meshStandardMaterial color="#888899" metalness={0.6} roughness={0.3} />
+    <group position={[-width * 0.45, height, -depth * 0.45]}>
+      {/* 4 legs */}
+      {[
+        [1.5, 0, 1.5],
+        [-1.5, 0, 1.5],
+        [1.5, 0, -1.5],
+        [-1.5, 0, -1.5],
+      ].map(([x, _, z], i) => (
+        <mesh key={i} position={[x, legH / 2, z]}>
+          <cylinderGeometry args={[0.3, 0.3, legH, 6]} />
+          <meshStandardMaterial color="#666677" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Cross braces */}
+      {[
+        { pos: [0, legH * 0.35, 1.5] as const, size: [3, 0.3, 0.3] as const },
+        { pos: [0, legH * 0.35, -1.5] as const, size: [3, 0.3, 0.3] as const },
+        { pos: [1.5, legH * 0.35, 0] as const, size: [0.3, 0.3, 3] as const },
+        { pos: [-1.5, legH * 0.35, 0] as const, size: [0.3, 0.3, 3] as const },
+      ].map((b, i) => (
+        <mesh key={`b${i}`} position={[b.pos[0], b.pos[1], b.pos[2]]}>
+          <boxGeometry args={[b.size[0], b.size[1], b.size[2]]} />
+          <meshStandardMaterial color="#555566" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      {/* Tank */}
+      <mesh position={[0, legH + tankH / 2, 0]}>
+        <cylinderGeometry args={[tankR, tankR, tankH, 8]} />
+        <meshStandardMaterial color="#556688" metalness={0.3} roughness={0.6} />
       </mesh>
-      {/* Spire cone */}
-      <mesh position={[0, 2 + spireHeight / 2, 0]}>
-        <coneGeometry args={[baseRadius, spireHeight, 8]} />
-        <meshStandardMaterial color="#aaaabb" metalness={0.8} roughness={0.2} />
+      {/* Tank band */}
+      <mesh position={[0, legH + tankH * 0.3, 0]}>
+        <cylinderGeometry args={[tankR + 0.15, tankR + 0.15, 0.5, 8]} />
+        <meshStandardMaterial color="#445577" metalness={0.4} roughness={0.5} />
       </mesh>
-      {/* Tip light */}
-      <mesh position={[0, spireHeight + 3, 0]}>
-        <sphereGeometry args={[0.6, 8, 8]} />
-        <meshStandardMaterial
-          color="#ff2222"
-          emissive="#ff0000"
-          emissiveIntensity={3}
-          toneMapped={false}
-        />
+      {/* Conical roof */}
+      <mesh position={[0, legH + tankH + 1.2, 0]}>
+        <coneGeometry args={[tankR + 0.5, 2.4, 8]} />
+        <meshStandardMaterial color="#667799" metalness={0.4} roughness={0.5} />
       </mesh>
+      {/* Ladder (boxes stacked on one side) */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <mesh key={`l${i}`} position={[tankR - 0.5, 1.5 + i * 1.5, 0]}>
+          <boxGeometry args={[0.4, 0.25, 1.2]} />
+          <meshStandardMaterial color="#777788" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Ladder rails */}
+      {[-0.5, 0.5].map((z, i) => (
+        <mesh key={`r${i}`} position={[tankR - 0.5, legH / 2 + 1, z]}>
+          <boxGeometry args={[0.2, legH + 2, 0.2]} />
+          <meshStandardMaterial color="#777788" metalness={0.5} roughness={0.4} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -685,13 +857,17 @@ export function Billboards({
 }
 
 // ─── Flag ────────────────────────────────────────────────────
-// Animated flag on top of the building
+// Animated flag on corner of building (front-right)
 
 export function Flag({
   height,
+  width,
+  depth,
   color = "#c8e64a",
 }: {
   height: number;
+  width: number;
+  depth: number;
   color?: string;
 }) {
   const flagRef = useRef<THREE.Mesh>(null);
@@ -700,21 +876,21 @@ export function Flag({
     if (!flagRef.current) return;
     const t = state.clock.elapsedTime;
     flagRef.current.rotation.y = Math.sin(t * 2) * 0.2;
-    flagRef.current.position.x = Math.sin(t * 3) * 0.3 + 3;
+    flagRef.current.position.x = Math.sin(t * 3) * 0.2 + 2.5;
   });
 
-  const poleHeight = 15;
+  const poleHeight = 10;
 
   return (
-    <group position={[0, height, 0]}>
+    <group position={[width * 0.45, height, depth * 0.45]}>
       {/* Pole */}
       <mesh position={[0, poleHeight / 2, 0]}>
-        <cylinderGeometry args={[0.3, 0.4, poleHeight, 6]} />
+        <cylinderGeometry args={[0.25, 0.35, poleHeight, 6]} />
         <meshStandardMaterial color="#888899" metalness={0.7} roughness={0.3} />
       </mesh>
       {/* Flag cloth */}
-      <mesh ref={flagRef} position={[3, poleHeight - 2, 0]}>
-        <planeGeometry args={[6, 4]} />
+      <mesh ref={flagRef} position={[2.5, poleHeight - 1.5, 0]}>
+        <planeGeometry args={[5, 3]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -723,15 +899,16 @@ export function Flag({
         />
       </mesh>
       {/* Pole tip */}
-      <mesh position={[0, poleHeight + 0.5, 0]}>
-        <sphereGeometry args={[0.6, 8, 8]} />
+      <mesh position={[0, poleHeight + 0.4, 0]}>
+        <sphereGeometry args={[0.5, 8, 8]} />
         <meshStandardMaterial color="#ccccdd" metalness={0.8} />
       </mesh>
     </group>
   );
 }
 
-// ─── Neon Trim (v2 — thick bars, replaces neon_outline) ──────
+// ─── Neon Trim (aura zone) ───────────────────────────────────
+// Glowing neon outlines on all 12 building edges + scanning band
 
 export function NeonTrim({
   width,
@@ -744,45 +921,117 @@ export function NeonTrim({
   depth: number;
   color?: string;
 }) {
-  const trimRef = useRef<THREE.Group>(null);
+  const edgesRef = useRef<THREE.Group>(null);
+  const scanRef = useRef<THREE.Group>(null);
+
+  const w2 = width / 2;
+  const d2 = depth / 2;
+  const lw = 0.5;
+
+  // 12 edges of the building box
+  const edges = useMemo(() => {
+    const e: { pos: [number, number, number]; size: [number, number, number] }[] = [];
+    // 4 vertical corner edges
+    for (const [x, z] of [[w2, d2], [-w2, d2], [w2, -d2], [-w2, -d2]] as [number, number][]) {
+      e.push({ pos: [x, height / 2, z], size: [lw, height + lw, lw] });
+    }
+    // 4 bottom horizontals
+    e.push({ pos: [0, 0, d2], size: [width, lw, lw] });
+    e.push({ pos: [0, 0, -d2], size: [width, lw, lw] });
+    e.push({ pos: [w2, 0, 0], size: [lw, lw, depth] });
+    e.push({ pos: [-w2, 0, 0], size: [lw, lw, depth] });
+    // 4 top horizontals
+    e.push({ pos: [0, height, d2], size: [width, lw, lw] });
+    e.push({ pos: [0, height, -d2], size: [width, lw, lw] });
+    e.push({ pos: [w2, height, 0], size: [lw, lw, depth] });
+    e.push({ pos: [-w2, height, 0], size: [lw, lw, depth] });
+    return e;
+  }, [w2, d2, width, depth, height]);
 
   useFrame((state) => {
-    if (!trimRef.current) return;
     const t = state.clock.elapsedTime;
-    const intensity = 3 + Math.sin(t * 1.5) * 1;
-    trimRef.current.children.forEach((child) => {
-      const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-      if (mat?.emissiveIntensity !== undefined) mat.emissiveIntensity = intensity;
-    });
-  });
+    const pulse = 0.45 + Math.sin(t * 1.8) * 0.2;
 
-  const barThickness = 2;
-  const hw = width / 2 + barThickness / 2;
-  const hd = depth / 2 + barThickness / 2;
-  const levels = [height * 0.33, height * 0.66, height - 1];
+    if (edgesRef.current) {
+      edgesRef.current.children.forEach((g) => {
+        const eg = g as THREE.Group;
+        const solid = (eg.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        const glow = (eg.children[1] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        solid.opacity = pulse;
+        glow.opacity = pulse * 0.15;
+      });
+    }
+
+    // Sweep scan band upward
+    if (scanRef.current) {
+      const phase = (t / 3.5) % 1;
+      scanRef.current.position.y = phase * height;
+      const intensity = 0.7 - Math.abs(phase - 0.5) * 0.4;
+      const ch = scanRef.current.children;
+      for (let i = 0; i < 4; i++) {
+        ((ch[i] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = intensity;
+      }
+      ((ch[4] as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = intensity * 0.12;
+    }
+  });
 
   return (
     <group>
-      {levels.map((y, li) => (
-        <group ref={li === 0 ? trimRef : undefined} key={li} position={[0, y, 0]}>
-          <mesh position={[0, 0, hd]}>
-            <boxGeometry args={[width + barThickness * 2, barThickness, barThickness]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} />
-          </mesh>
-          <mesh position={[0, 0, -hd]}>
-            <boxGeometry args={[width + barThickness * 2, barThickness, barThickness]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} />
-          </mesh>
-          <mesh position={[-hw, 0, 0]}>
-            <boxGeometry args={[barThickness, barThickness, depth]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} />
-          </mesh>
-          <mesh position={[hw, 0, 0]}>
-            <boxGeometry args={[barThickness, barThickness, depth]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
+      {/* Neon edge outlines */}
+      <group ref={edgesRef}>
+        {edges.map((edge, i) => (
+          <group key={i}>
+            <mesh position={edge.pos}>
+              <boxGeometry args={edge.size} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.45}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </mesh>
+            <mesh position={edge.pos}>
+              <boxGeometry args={[edge.size[0] + 1.2, edge.size[1] + 0.3, edge.size[2] + 1.2]} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.07}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* Scanning band that sweeps upward */}
+      <group ref={scanRef}>
+        <mesh position={[0, 0, d2]}>
+          <boxGeometry args={[width + 1, 0.6, 0.6]} />
+          <meshBasicMaterial color={color} transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        <mesh position={[0, 0, -d2]}>
+          <boxGeometry args={[width + 1, 0.6, 0.6]} />
+          <meshBasicMaterial color={color} transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        <mesh position={[w2, 0, 0]}>
+          <boxGeometry args={[0.6, 0.6, depth + 1]} />
+          <meshBasicMaterial color={color} transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        <mesh position={[-w2, 0, 0]}>
+          <boxGeometry args={[0.6, 0.6, depth + 1]} />
+          <meshBasicMaterial color={color} transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+        {/* Glow plane */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[width + 3, depth + 3]} />
+          <meshBasicMaterial color={color} transparent opacity={0.08} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
+
+      <pointLight position={[0, height * 0.5, 0]} color={color} intensity={12} distance={45} />
     </group>
   );
 }
@@ -807,10 +1056,10 @@ export function SatelliteDish({
     dishRef.current.rotation.y = state.clock.elapsedTime * 0.3;
   });
 
-  const dishSize = Math.min(width, depth) * 0.4;
+  const dishSize = Math.min(width, depth) * 0.25;
 
   return (
-    <group position={[0, height, 0]}>
+    <group position={[width * 0.45, height, -depth * 0.45]}>
       {/* Support pole */}
       <mesh position={[0, 3, 0]}>
         <cylinderGeometry args={[0.5, 0.8, 6, 6]} />
@@ -842,38 +1091,74 @@ export function SatelliteDish({
 export function CrownItem({
   height,
   color = "#ffd700",
+  focused,
 }: {
   height: number;
   color?: string;
+  focused?: boolean;
 }) {
   const crownRef = useRef<THREE.Group>(null);
+  // Above label when not focused, closer to roof when focused (label hidden)
+  const targetY = focused ? height + 14 : height + 24;
 
   useFrame((state) => {
     if (!crownRef.current) return;
     const t = state.clock.elapsedTime;
-    crownRef.current.position.y = height + 8 + Math.sin(t * 1.5) * 1.5;
+    // Smooth lerp to target
+    crownRef.current.position.y += (targetY + Math.sin(t * 1.5) * 1.5 - crownRef.current.position.y) * 0.05;
     crownRef.current.rotation.y = t * 0.5;
   });
 
+  const S = 4.5; // half-size of crown square
+  const bH = 3.5; // band height
+  const bW = 1; // band wall thickness
+  const pH = 5; // tall prong height above band
+  const pW = 1.6; // prong width
+  const gemColors = ["#ff1133", "#3366ff", "#11dd55", "#ff8800"];
+
   return (
-    <group ref={crownRef} position={[0, height + 8, 0]}>
-      {/* Crown base ring */}
-      <mesh>
-        <cylinderGeometry args={[6, 6, 3, 8]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
+    <group ref={crownRef} position={[0, height + 24, 0]}>
+      {/* Band — 4 walls forming a hollow square */}
+      <mesh position={[0, bH / 2, S]}>
+        <boxGeometry args={[S * 2 + bW, bH, bW]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
       </mesh>
-      {/* Crown points (4 pillars) */}
-      {[0, 1, 2, 3].map((i) => {
-        const angle = (i / 4) * Math.PI * 2;
-        return (
-          <mesh key={i} position={[Math.cos(angle) * 5, 4, Math.sin(angle) * 5]}>
-            <boxGeometry args={[2, 5, 2]} />
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
+      <mesh position={[0, bH / 2, -S]}>
+        <boxGeometry args={[S * 2 + bW, bH, bW]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[S, bH / 2, 0]}>
+        <boxGeometry args={[bW, bH, S * 2 - bW]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[-S, bH / 2, 0]}>
+        <boxGeometry args={[bW, bH, S * 2 - bW]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
+      </mesh>
+
+      {/* 4 tall corner prongs + gems */}
+      {([[S, S], [-S, S], [S, -S], [-S, -S]] as [number, number][]).map(([x, z], i) => (
+        <group key={i}>
+          <mesh position={[x, bH + pH / 2, z]}>
+            <boxGeometry args={[pW, pH, pW]} />
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
           </mesh>
-        );
-      })}
-      {/* Glow */}
-      <pointLight color={color} intensity={60} distance={80} />
+          <mesh position={[x, bH + pH + 0.6, z]}>
+            <boxGeometry args={[1.1, 1.1, 1.1]} />
+            <meshStandardMaterial color={gemColors[i]} emissive={gemColors[i]} emissiveIntensity={3} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 4 shorter mid-wall prongs (zigzag crown silhouette) */}
+      {([[0, S], [0, -S], [S, 0], [-S, 0]] as [number, number][]).map(([x, z], i) => (
+        <mesh key={`m${i}`} position={[x, bH + pH * 0.35, z]}>
+          <boxGeometry args={[pW * 0.7, pH * 0.45, pW * 0.7]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} toneMapped={false} metalness={0.6} roughness={0.3} />
+        </mesh>
+      ))}
+
+      <pointLight color={color} intensity={50} distance={70} />
     </group>
   );
 }
@@ -936,7 +1221,8 @@ export function PoolParty({
   );
 }
 
-// ─── Hologram Ring (aura zone) ──────────────────────────────
+// ─── Holo Shield (was Hologram Ring) ─────────────────────────
+// Wireframe force field wrapping building + 2 orbiting data rings
 
 export function HologramRing({
   width,
@@ -949,33 +1235,101 @@ export function HologramRing({
   depth: number;
   color?: string;
 }) {
-  const ringRef = useRef<THREE.Mesh>(null);
+  const shieldRef = useRef<THREE.Mesh>(null);
+  const dataRing1 = useRef<THREE.Mesh>(null);
+  const dataRing2 = useRef<THREE.Mesh>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
+
+  // Shield must enclose the building — use diagonal + padding
+  const diag = Math.sqrt(width * width + depth * depth) * 0.5;
+  const shieldR = Math.max(diag, height * 0.5) + 3;
+  const ringR = shieldR + 2;
 
   useFrame((state) => {
-    if (!ringRef.current) return;
-    ringRef.current.rotation.y = state.clock.elapsedTime * 0.8;
-    ringRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+    const t = state.clock.elapsedTime;
+    // Pulse shield
+    if (shieldRef.current) {
+      const pulse = 1 + Math.sin(t * 2) * 0.015;
+      shieldRef.current.scale.set(pulse, pulse, pulse);
+      const mat = shieldRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.12 + Math.sin(t * 3) * 0.04;
+    }
+    // Orbit data rings
+    if (dataRing1.current) dataRing1.current.rotation.y = t * 0.7;
+    if (dataRing2.current) dataRing2.current.rotation.y = -t * 0.5;
+    // Halo pulse
+    if (haloRef.current) {
+      const mat = haloRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.03 + Math.sin(t * 1.5) * 0.015;
+    }
   });
 
-  const radius = Math.max(width, depth) * 0.7;
-
   return (
-    <mesh ref={ringRef} position={[0, height * 0.6, 0]}>
-      <torusGeometry args={[radius, 1.5, 8, 32]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={color}
-        emissiveIntensity={2}
-        toneMapped={false}
-        transparent
-        opacity={0.4}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <group position={[0, height * 0.5, 0]}>
+      {/* Wireframe force field */}
+      <mesh ref={shieldRef}>
+        <sphereGeometry args={[shieldR, 10, 8]} />
+        <meshBasicMaterial
+          color={color}
+          wireframe
+          transparent
+          opacity={0.14}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Inner fill glow */}
+      <mesh ref={haloRef}>
+        <sphereGeometry args={[shieldR * 0.97, 10, 8]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.03}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          side={THREE.BackSide}
+        />
+      </mesh>
+
+      {/* Data ring 1 — tilted orbit */}
+      <group rotation={[1.2, 0, 0]}>
+        <mesh ref={dataRing1}>
+          <torusGeometry args={[ringR, 0.4, 6, 32]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.45}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+
+      {/* Data ring 2 — counter-tilted */}
+      <group rotation={[-0.8, 0, 0.5]}>
+        <mesh ref={dataRing2}>
+          <torusGeometry args={[ringR * 0.9, 0.35, 6, 32]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.35}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+
+      <pointLight color={color} intensity={15} distance={60} />
+    </group>
   );
 }
 
-// ─── Lightning Aura (aura zone — premium) ───────────────────
+// ─── Electric Storm (was Lightning Aura) ─────────────────────
+// Storm clouds + zig-zag lightning bolts + rain + flash
+
+const RAIN_COUNT = 50;
+const BOLT_SEGS = 6;
+const BOLT_SLOTS = 3;
 
 export function LightningAura({
   width,
@@ -988,66 +1342,213 @@ export function LightningAura({
   depth: number;
   color?: string;
 }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const bolts = useRef<THREE.Mesh[]>([]);
-  const nextFlash = useRef(0);
+  const rainRef = useRef<THREE.Group>(null);
+  const boltsRef = useRef<THREE.Group>(null);
+  const cloudsRef = useRef<THREE.Group>(null);
+  const flash1 = useRef<THREE.PointLight>(null);
+  const flash2 = useRef<THREE.PointLight>(null);
+  const nextStrike = useRef(0);
+  const strikeEnd = useRef(0);
 
-  const setBoltRef = useCallback((el: THREE.Mesh | null, idx: number) => {
-    if (el) bolts.current[idx] = el;
+  const spread = Math.max(width, depth) * 1.2;
+  const cloudY = height * 1.1;
+  const rainTop = cloudY - 2;
+  const rainBot = -height * 0.5 - 2;
+
+  // Cloud blocks
+  const clouds = useMemo(() => {
+    const arr: { x: number; z: number; y: number; w: number; h: number; d: number }[] = [];
+    for (let i = 0; i < 8; i++) {
+      arr.push({
+        x: (Math.random() - 0.5) * spread * 1.6,
+        z: (Math.random() - 0.5) * spread * 1.6,
+        y: cloudY + (Math.random() - 0.5) * 3,
+        w: 4 + Math.random() * 8, h: 2 + Math.random() * 2, d: 4 + Math.random() * 8,
+      });
+    }
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = spread * (0.6 + Math.random() * 0.5);
+      arr.push({
+        x: Math.cos(a) * r, z: Math.sin(a) * r,
+        y: cloudY + (Math.random() - 0.5) * 2,
+        w: 3 + Math.random() * 5, h: 1.5 + Math.random() * 1.5, d: 3 + Math.random() * 5,
+      });
+    }
+    return arr;
+  }, [spread, cloudY]);
+
+  // Rain
+  const drops = useMemo(() => {
+    const arr: { x: number; z: number; y: number; speed: number; len: number }[] = [];
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      arr.push({
+        x: (Math.random() - 0.5) * spread * 2,
+        z: (Math.random() - 0.5) * spread * 2,
+        y: rainBot + Math.random() * (rainTop - rainBot),
+        speed: 25 + Math.random() * 20,
+        len: 1.0 + Math.random() * 1.2,
+      });
+    }
+    return arr;
+  }, [spread, rainTop, rainBot]);
+
+  // Bolt zig-zag state
+  const boltState = useMemo(() => {
+    const slots = [];
+    for (let b = 0; b < BOLT_SLOTS; b++) {
+      const segs = [];
+      for (let s = 0; s < BOLT_SEGS; s++) {
+        segs.push({ x: 0, y: 0, z: 0, rZ: 0, len: 3 });
+      }
+      slots.push(segs);
+    }
+    return slots;
   }, []);
 
-  useFrame((state) => {
+  const generateBolt = (segs: typeof boltState[0]) => {
+    let cx = (Math.random() - 0.5) * spread;
+    let cy = cloudY - 2;
+    let cz = (Math.random() - 0.5) * spread;
+    const targetY = -height * 0.5 + height * Math.random() * 0.3;
+    const stepY = (cy - targetY) / BOLT_SEGS;
+    for (let s = 0; s < BOLT_SEGS; s++) {
+      const nx = cx + (Math.random() - 0.5) * 6;
+      const ny = cy - stepY;
+      const nz = cz + (Math.random() - 0.5) * 6;
+      const dx = nx - cx;
+      const dy = ny - cy;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      segs[s].x = (cx + nx) / 2;
+      segs[s].y = (cy + ny) / 2;
+      segs[s].z = (cz + nz) / 2;
+      segs[s].rZ = -Math.atan2(dx, dy);
+      segs[s].len = len;
+      cx = nx; cy = ny; cz = nz;
+    }
+  };
+
+  useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
-    if (t > nextFlash.current) {
-      nextFlash.current = t + 0.5 + Math.random() * 2;
-      // Flash a random bolt
-      const idx = Math.floor(Math.random() * bolts.current.length);
-      const bolt = bolts.current[idx];
-      if (bolt) {
-        const mat = bolt.material as THREE.MeshStandardMaterial;
-        mat.emissiveIntensity = 8;
-        mat.opacity = 0.9;
-        setTimeout(() => {
-          mat.emissiveIntensity = 0.5;
-          mat.opacity = 0.2;
-        }, 100);
+
+    // Cloud bob
+    if (cloudsRef.current) cloudsRef.current.position.y = Math.sin(t * 0.3) * 0.5;
+
+    // Rain
+    if (rainRef.current) {
+      const ch = rainRef.current.children;
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        const d = drops[i];
+        const m = ch[i] as THREE.Mesh;
+        if (!m) continue;
+        d.y -= d.speed * delta;
+        if (d.y < rainBot) {
+          d.y = rainTop;
+          d.x = (Math.random() - 0.5) * spread * 2;
+          d.z = (Math.random() - 0.5) * spread * 2;
+        }
+        m.position.set(d.x, d.y, d.z);
       }
+    }
+
+    // Strike timing
+    const striking = t < strikeEnd.current;
+    if (t > nextStrike.current) {
+      nextStrike.current = t + 0.5 + Math.random() * 2;
+      strikeEnd.current = t + 0.07 + Math.random() * 0.06;
+      boltState.forEach((segs) => generateBolt(segs));
+    }
+
+    // Bolt meshes
+    if (boltsRef.current) {
+      const ch = boltsRef.current.children;
+      for (let b = 0; b < BOLT_SLOTS; b++) {
+        for (let s = 0; s < BOLT_SEGS; s++) {
+          const m = ch[b * BOLT_SEGS + s] as THREE.Mesh;
+          if (!m) continue;
+          const seg = boltState[b][s];
+          m.position.set(seg.x, seg.y, seg.z);
+          m.rotation.set(0, 0, seg.rZ);
+          m.scale.y = seg.len / 3;
+          (m.material as THREE.MeshBasicMaterial).opacity = striking ? 0.9 : 0;
+        }
+      }
+    }
+
+    // Flash
+    if (flash1.current) flash1.current.intensity = striking ? 120 + Math.random() * 80 : 0;
+    if (flash2.current) flash2.current.intensity = striking ? 80 + Math.random() * 60 : 0;
+
+    // Cloud flash glow
+    if (cloudsRef.current) {
+      cloudsRef.current.children.forEach((c) => {
+        const mat = (c as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        mat.emissiveIntensity = striking ? 1.5 : 0;
+      });
     }
   });
 
-  const spread = Math.max(width, depth) * 0.6;
-
   return (
-    <group ref={groupRef}>
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const angle = (i / 6) * Math.PI * 2;
-        const x = Math.cos(angle) * spread;
-        const z = Math.sin(angle) * spread;
-        const boltH = height * 0.4 + Math.random() * height * 0.3;
-        const y = height * 0.2 + Math.random() * height * 0.3;
-        return (
-          <mesh
-            key={i}
-            ref={(el) => setBoltRef(el, i)}
-            position={[x, y + boltH / 2, z]}
-          >
-            <boxGeometry args={[0.8, boltH, 0.8]} />
+    <group position={[0, height * 0.5, 0]}>
+      {/* Storm clouds — dark pixel blocks */}
+      <group ref={cloudsRef}>
+        {clouds.map((c, i) => (
+          <mesh key={i} position={[c.x, c.y, c.z]}>
+            <boxGeometry args={[c.w, c.h, c.d]} />
             <meshStandardMaterial
-              color={color}
+              color="#1a1a28"
               emissive={color}
-              emissiveIntensity={0.5}
-              toneMapped={false}
+              emissiveIntensity={0}
               transparent
-              opacity={0.2}
+              opacity={0.85}
             />
           </mesh>
-        );
-      })}
+        ))}
+      </group>
+
+      {/* Lightning bolts — 3 slots × 6 zig-zag segments */}
+      <group ref={boltsRef}>
+        {Array.from({ length: BOLT_SLOTS * BOLT_SEGS }).map((_, i) => (
+          <mesh key={i}>
+            <boxGeometry args={[0.5, 3, 0.5]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={0}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
+
+      {/* Rain */}
+      <group ref={rainRef}>
+        {drops.map((d, i) => (
+          <mesh key={i} position={[d.x, d.y, d.z]}>
+            <boxGeometry args={[0.1, d.len, 0.1]} />
+            <meshBasicMaterial
+              color="#8899bb"
+              transparent
+              opacity={0.3}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
+
+      {/* Flash lights */}
+      <pointLight ref={flash1} color="#ffffff" intensity={0} distance={120} position={[0, cloudY, 0]} />
+      <pointLight ref={flash2} color={color} intensity={0} distance={80} />
     </group>
   );
 }
 
 // ─── LED Banner (faces zone) ─────────────────────────────────
+// Scrolling marquee segments around building — Times Square style
+
+const LED_SEGS = 8; // segments per face
 
 export function LEDBanner({
   height,
@@ -1060,47 +1561,69 @@ export function LEDBanner({
   depth: number;
   color?: string;
 }) {
-  const bannerRef = useRef<THREE.Group>(null);
-  const offsetRef = useRef(0);
-
-  useFrame((_, delta) => {
-    offsetRef.current += delta * 0.5;
-    if (!bannerRef.current) return;
-    // Scroll effect via UV offset (simulated via position)
-    bannerRef.current.children.forEach((child) => {
-      const mat = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-      if (mat?.emissiveIntensity !== undefined) {
-        mat.emissiveIntensity = 2 + Math.sin(offsetRef.current * 3) * 0.5;
-      }
-    });
-  });
+  const groupRef = useRef<THREE.Group>(null);
 
   const bannerH = 3;
   const y = height * 0.45;
   const hw = width / 2 + 0.3;
   const hd = depth / 2 + 0.3;
 
+  // Build face configs: each face has LED_SEGS scrolling blocks
+  const faces = useMemo(() => [
+    { axis: "x" as const, faceW: width, pos: [0, y, hd] as const, rot: 0 },      // front
+    { axis: "x" as const, faceW: width, pos: [0, y, -hd] as const, rot: 0 },     // back
+    { axis: "z" as const, faceW: depth, pos: [hw, y, 0] as const, rot: 0 },      // right
+    { axis: "z" as const, faceW: depth, pos: [-hw, y, 0] as const, rot: 0 },     // left
+  ], [width, depth, y, hw, hd]);
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const t = state.clock.elapsedTime;
+    const children = groupRef.current.children;
+    let idx = 0;
+    for (let f = 0; f < faces.length; f++) {
+      const face = faces[f];
+      const segW = face.faceW / LED_SEGS;
+      for (let s = 0; s < LED_SEGS; s++) {
+        const mesh = children[idx] as THREE.Mesh;
+        if (!mesh) { idx++; continue; }
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        // Scrolling wave: each segment lights up in sequence
+        const phase = (s / LED_SEGS + f * 0.25 + t * 0.4) % 1;
+        const brightness = 0.3 + Math.pow(Math.sin(phase * Math.PI), 2) * 2.5;
+        mat.emissiveIntensity = brightness;
+        // Slight scale pulse on bright segments
+        const scale = 1 + (brightness > 2 ? 0.05 : 0);
+        mesh.scale.y = scale;
+        idx++;
+      }
+    }
+  });
+
   return (
-    <group ref={bannerRef}>
-      {/* Front face banner */}
-      <mesh position={[0, y, hd]}>
-        <boxGeometry args={[width, bannerH, 0.5]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
-      </mesh>
-      {/* Back face banner */}
-      <mesh position={[0, y, -hd]}>
-        <boxGeometry args={[width, bannerH, 0.5]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
-      </mesh>
-      {/* Side banners */}
-      <mesh position={[hw, y, 0]}>
-        <boxGeometry args={[0.5, bannerH, depth]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
-      </mesh>
-      <mesh position={[-hw, y, 0]}>
-        <boxGeometry args={[0.5, bannerH, depth]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} toneMapped={false} />
-      </mesh>
+    <group ref={groupRef}>
+      {faces.flatMap((face, f) => {
+        const segW = face.faceW / LED_SEGS;
+        return Array.from({ length: LED_SEGS }, (_, s) => {
+          const offset = -face.faceW / 2 + segW / 2 + s * segW;
+          const gap = 0.3;
+          const px = face.axis === "x" ? face.pos[0] + offset : face.pos[0];
+          const pz = face.axis === "z" ? face.pos[2] + offset : face.pos[2];
+          const sizeX = face.axis === "x" ? segW - gap : 0.5;
+          const sizeZ = face.axis === "z" ? segW - gap : 0.5;
+          return (
+            <mesh key={`${f}-${s}`} position={[px, face.pos[1], pz]}>
+              <boxGeometry args={[sizeX, bannerH, sizeZ]} />
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={0.5}
+                toneMapped={false}
+              />
+            </mesh>
+          );
+        });
+      })}
     </group>
   );
 }

@@ -246,6 +246,15 @@ export async function GET(
       );
     }
 
+    // Snapshot current rank + top 3 before recalculation
+    const devId = upserted?.id;
+    const oldRank = upserted?.rank as number | null;
+    const { data: oldTop3 } = await sb
+      .from("developers")
+      .select("id, github_login, rank")
+      .order("rank", { ascending: true })
+      .limit(3);
+
     // Recalculate ranks so this developer gets a fresh rank immediately
     await sb.rpc("recalculate_ranks");
 
@@ -254,6 +263,55 @@ export async function GET(
       .select("*")
       .eq("github_login", record.github_login)
       .single();
+
+    // Detect rank changes and insert feed events
+    if (devId && withRank) {
+      const newRank = withRank.rank as number;
+      const brackets = [10, 50, 100];
+
+      // rank_up: dev entered a new bracket
+      if (oldRank && newRank < oldRank) {
+        for (const bracket of brackets) {
+          if (newRank <= bracket && oldRank > bracket) {
+            await sb.from("activity_feed").insert({
+              event_type: "rank_up",
+              actor_id: devId,
+              metadata: {
+                login: record.github_login,
+                category: "contributors",
+                old_rank: oldRank,
+                new_rank: newRank,
+              },
+            });
+            break; // one event per refresh
+          }
+        }
+      }
+
+      // leaderboard_change: new top 3
+      const { data: newTop3 } = await sb
+        .from("developers")
+        .select("id, github_login, rank")
+        .order("rank", { ascending: true })
+        .limit(3);
+
+      if (oldTop3 && newTop3) {
+        const oldIds = new Set(oldTop3.map((d) => d.id));
+        for (const d of newTop3) {
+          if (!oldIds.has(d.id)) {
+            await sb.from("activity_feed").insert({
+              event_type: "leaderboard_change",
+              actor_id: d.id,
+              metadata: {
+                login: d.github_login,
+                category: "contributors",
+                position: d.rank,
+              },
+            });
+          }
+        }
+      }
+    }
 
     return NextResponse.json(withRank ?? upserted);
   } catch (err) {

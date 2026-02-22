@@ -94,6 +94,15 @@ export async function POST(request: Request) {
     config[zone] = itemId;
   }
 
+  // Get current loadout to detect changes
+  const { data: currentLoadout } = await admin
+    .from("developer_customizations")
+    .select("config")
+    .eq("developer_id", dev.id)
+    .eq("item_id", "loadout")
+    .maybeSingle();
+  const prev = (currentLoadout?.config ?? { crown: null, roof: null, aura: null }) as Record<string, string | null>;
+
   // Upsert loadout
   await admin.from("developer_customizations").upsert(
     {
@@ -104,6 +113,18 @@ export async function POST(request: Request) {
     },
     { onConflict: "developer_id,item_id" }
   );
+
+  // Feed event for newly equipped items
+  for (const zone of ["crown", "roof", "aura"] as const) {
+    if (config[zone] && config[zone] !== prev[zone]) {
+      await admin.from("activity_feed").insert({
+        event_type: "item_equipped",
+        actor_id: dev.id,
+        metadata: { login: githubLogin, item_id: config[zone], zone },
+      });
+      break; // One event per save to avoid spam
+    }
+  }
 
   return NextResponse.json({ ok: true, loadout: config });
 }

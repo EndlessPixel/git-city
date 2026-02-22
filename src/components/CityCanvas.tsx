@@ -6,7 +6,7 @@ import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import CityScene from "./CityScene";
 import type { FocusInfo } from "./CityScene";
-import type { CityBuilding, CityPlaza, CityDecoration } from "@/lib/github";
+import type { CityBuilding, CityPlaza, CityDecoration, CityRiver, CityBridge } from "@/lib/github";
 import { seededRandom } from "@/lib/github";
 
 // ─── Theme Definitions ───────────────────────────────────────
@@ -46,6 +46,9 @@ interface CityTheme {
   grid1: string;
   grid2: string;
   building: BuildingColors;
+  waterColor: string;
+  waterEmissive: string;
+  dockColor: string;
 }
 
 const THEMES: CityTheme[] = [
@@ -56,17 +59,18 @@ const THEMES: CityTheme[] = [
       [0.46, "#a05068"], [0.52, "#d07060"], [0.57, "#e89060"], [0.62, "#f0b070"],
       [0.68, "#f0c888"], [0.75, "#c08060"], [0.85, "#603030"], [1, "#180c10"],
     ],
-    fogColor: "#80405a", fogNear: 200, fogFar: 1800,
+    fogColor: "#80405a", fogNear: 400, fogFar: 3000,
     ambientColor: "#e0a080", ambientIntensity: 0.35,
     sunColor: "#f0b070", sunIntensity: 0.6, sunPos: [400, 50, -300],
     fillColor: "#6050a0", fillIntensity: 0.1, fillPos: [-200, 80, 200],
     hemiSky: "#a06060", hemiGround: "#100a0c", hemiIntensity: 0.25,
-    groundColor: "#100a0c", grid1: "#2a1820", grid2: "#180e12",
+    groundColor: "#1a1218", grid1: "#3a2030", grid2: "#28141e",
     building: {
       windowLit: ["#f8d880", "#f0b860", "#e89840", "#d07830", "#f0c060"],
       windowOff: "#1a1018", face: "#281828", roof: "#604050",
       accent: "#c8e64a",
     },
+    waterColor: "#1a2040", waterEmissive: "#102060", dockColor: "#4a3020",
   },
   // 1 – Midnight
   {
@@ -74,17 +78,18 @@ const THEMES: CityTheme[] = [
       [0, "#000206"], [0.15, "#020814"], [0.30, "#061428"], [0.45, "#0c2040"],
       [0.55, "#102850"], [0.65, "#0c2040"], [0.80, "#061020"], [1, "#020608"],
     ],
-    fogColor: "#0a1428", fogNear: 200, fogFar: 1600,
+    fogColor: "#0a1428", fogNear: 400, fogFar: 3000,
     ambientColor: "#4060b0", ambientIntensity: 0.2,
     sunColor: "#6080c0", sunIntensity: 0.3, sunPos: [300, 100, -200],
     fillColor: "#304080", fillIntensity: 0.08, fillPos: [-200, 60, 200],
     hemiSky: "#203060", hemiGround: "#060810", hemiIntensity: 0.15,
-    groundColor: "#060810", grid1: "#101828", grid2: "#080c14",
+    groundColor: "#0c1018", grid1: "#182030", grid2: "#101820",
     building: {
       windowLit: ["#a0c0f0", "#80a0e0", "#6080c8", "#c0d8f8", "#e0e8ff"],
       windowOff: "#0c0e18", face: "#101828", roof: "#2a3858",
       accent: "#6090e0",
     },
+    waterColor: "#0a1830", waterEmissive: "#0a2050", dockColor: "#3a2818",
   },
   // 2 – Neon
   {
@@ -93,17 +98,18 @@ const THEMES: CityTheme[] = [
       [0.52, "#500860"], [0.60, "#380648"], [0.75, "#180230"], [0.90, "#0c0118"],
       [1, "#06000c"],
     ],
-    fogColor: "#1a0830", fogNear: 180, fogFar: 1600,
+    fogColor: "#1a0830", fogNear: 400, fogFar: 3000,
     ambientColor: "#8040c0", ambientIntensity: 0.3,
     sunColor: "#c040e0", sunIntensity: 0.5, sunPos: [300, 80, -200],
     fillColor: "#00c0d0", fillIntensity: 0.15, fillPos: [-250, 60, 200],
     hemiSky: "#6020a0", hemiGround: "#080410", hemiIntensity: 0.2,
-    groundColor: "#08040c", grid1: "#201040", grid2: "#100820",
+    groundColor: "#100818", grid1: "#281848", grid2: "#1c1030",
     building: {
       windowLit: ["#ff40c0", "#c040ff", "#00e0ff", "#40ff80", "#ff8040"],
       windowOff: "#0a0814", face: "#180830", roof: "#3c1858",
       accent: "#e040c0",
     },
+    waterColor: "#0c0830", waterEmissive: "#1008a0", dockColor: "#2a1838",
   },
   // 3 – Emerald
   {
@@ -112,23 +118,25 @@ const THEMES: CityTheme[] = [
       [0.52, "#004828"], [0.60, "#003820"], [0.75, "#002014"], [0.90, "#001008"],
       [1, "#000604"],
     ],
-    fogColor: "#0a2014", fogNear: 200, fogFar: 1600,
+    fogColor: "#0a2014", fogNear: 400, fogFar: 3000,
     ambientColor: "#40a060", ambientIntensity: 0.25,
     sunColor: "#60c080", sunIntensity: 0.4, sunPos: [300, 80, -250],
     fillColor: "#20a080", fillIntensity: 0.1, fillPos: [-200, 60, 200],
     hemiSky: "#208040", hemiGround: "#040c06", hemiIntensity: 0.2,
-    groundColor: "#040c06", grid1: "#0c2010", grid2: "#081408",
+    groundColor: "#081408", grid1: "#183020", grid2: "#102418",
     building: {
       windowLit: ["#0e4429", "#006d32", "#26a641", "#39d353", "#c8e64a"],
       windowOff: "#060e08", face: "#0c1810", roof: "#1e4028",
       accent: "#f0c060",
     },
+    waterColor: "#082018", waterEmissive: "#0a3020", dockColor: "#3a2818",
   },
 ];
 
 // ─── Sky Dome ────────────────────────────────────────────────
 
 function SkyDome({ stops }: { stops: [number, string][] }) {
+  const meshRef = useRef<THREE.Mesh>(null);
   const mat = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 4;
@@ -139,8 +147,15 @@ function SkyDome({ stops }: { stops: [number, string][] }) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 4, 512);
     const tex = new THREE.CanvasTexture(c);
-    return new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false });
+    return new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false });
   }, [stops]);
+
+  // Keep sky dome centered on camera so it always surrounds the viewer
+  useFrame(({ camera }) => {
+    if (meshRef.current) {
+      meshRef.current.position.copy(camera.position);
+    }
+  });
 
   useEffect(() => {
     return () => {
@@ -150,8 +165,8 @@ function SkyDome({ stops }: { stops: [number, string][] }) {
   }, [mat]);
 
   return (
-    <mesh material={mat}>
-      <sphereGeometry args={[900, 32, 48]} />
+    <mesh ref={meshRef} material={mat} renderOrder={-1}>
+      <sphereGeometry args={[3500, 32, 48]} />
     </mesh>
   );
 }
@@ -175,10 +190,12 @@ useGLTF.preload("/models/paper-plane.glb");
 function CameraFocus({
   buildings,
   focusedBuilding,
+  focusedBuildingB,
   controlsRef,
 }: {
   buildings: CityBuilding[];
   focusedBuilding: string | null;
+  focusedBuildingB?: string | null;
   controlsRef: React.RefObject<any>;
 }) {
   const { camera } = useThree();
@@ -198,10 +215,10 @@ function CameraFocus({
       return;
     }
 
-    const b = buildings.find(
+    const bA = buildings.find(
       (b) => b.login.toLowerCase() === focusedBuilding.toLowerCase()
     );
-    if (!b) return;
+    if (!bA) return;
 
     // Capture current camera state as start
     startPos.current.copy(camera.position);
@@ -209,23 +226,63 @@ function CameraFocus({
       startLook.current.copy(controlsRef.current.target);
     }
 
-    endPos.current.set(
-      b.position[0] + 80,
-      b.height + 60,
-      b.position[2] + 80
-    );
-    endLook.current.set(
-      b.position[0],
-      b.height + 15,
-      b.position[2]
-    );
+    // Dual focus: compute midpoint + separation-based backoff
+    const bB = focusedBuildingB
+      ? buildings.find((b) => b.login.toLowerCase() === focusedBuildingB.toLowerCase())
+      : null;
+
+    if (bB) {
+      const midX = (bA.position[0] + bB.position[0]) / 2;
+      const midZ = (bA.position[2] + bB.position[2]) / 2;
+      const midY = (bA.height + bB.height) / 2 + 15;
+      const dx = bB.position[0] - bA.position[0];
+      const dz = bB.position[2] - bA.position[2];
+      const separation = Math.sqrt(dx * dx + dz * dz);
+      const backoff = Math.max(400, separation * 2.2);
+
+      // Camera perpendicular to the A→B line so buildings land on opposite screen sides
+      // When buildings are very close, use a default direction instead of unstable perpendicular
+      let perpX: number, perpZ: number;
+      if (separation < 5) {
+        perpX = 0.707;
+        perpZ = 0.707;
+      } else {
+        perpX = -dz / separation;
+        perpZ = dx / separation;
+      }
+
+      endLook.current.set(midX, midY, midZ);
+      endPos.current.set(
+        midX + perpX * backoff,
+        midY + backoff * 0.45,
+        midZ + perpZ * backoff
+      );
+    } else {
+      // On mobile, shift lookAt target down so building appears above the bottom sheet,
+      // and pull camera further back to show more of the building
+      const isMobile = window.innerWidth < 640;
+      const mobileOffset = isMobile ? 60 : 0;
+      const dist = isMobile ? 250 : 80;
+      const camHeight = isMobile ? 160 : 60;
+      endPos.current.set(
+        bA.position[0] + dist,
+        bA.height + camHeight,
+        bA.position[2] + dist
+      );
+      endLook.current.set(
+        bA.position[0],
+        Math.max(0, bA.height + 15 - mobileOffset),
+        bA.position[2]
+      );
+    }
+
     progress.current = 0;
     active.current = true;
 
     if (controlsRef.current) {
       controlsRef.current.autoRotate = false;
     }
-  }, [focusedBuilding, buildings, camera, controlsRef]);
+  }, [focusedBuilding, focusedBuildingB, buildings, camera, controlsRef]);
 
   useFrame((_, delta) => {
     if (!active.current || progress.current >= 1) return;
@@ -252,7 +309,7 @@ function CameraFocus({
 
 // ─── Mouse-Driven Flight ─────────────────────────────────────
 
-const DEFAULT_FLY_SPEED = 60;
+const DEFAULT_FLY_SPEED = 25;
 const MIN_FLY_SPEED = 20;
 const MAX_FLY_SPEED = 160;
 const MIN_ALT = 25;
@@ -564,7 +621,7 @@ function AirplaneFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = 
 function CameraReset() {
   const { camera } = useThree();
   useEffect(() => {
-    camera.position.set(200, 180, 300);
+    camera.position.set(400, 350, 500);
     camera.lookAt(0, 30, 0);
   }, [camera]);
   return null;
@@ -576,8 +633,8 @@ function Ground({ color, grid1, grid2 }: { color: string; grid1: string; grid2: 
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
-        <planeGeometry args={[4000, 4000]} />
-        <meshStandardMaterial color={color} />
+        <planeGeometry args={[20000, 20000]} />
+        <meshBasicMaterial color={color} />
       </mesh>
       <gridHelper args={[4000, 240, grid1, grid2]} position={[0, 0.02, 0]} />
     </group>
@@ -591,15 +648,16 @@ function Tree3D({ position, variant }: { position: [number, number, number]; var
   const trunkH = 8 + variant * 1.5;
   const canopyH = 10 + variant * 2;
   const canopyR = 6 + variant * 0.8;
+  const gc = greens[variant % greens.length];
   return (
     <group position={position}>
       <mesh position={[0, trunkH / 2, 0]}>
         <cylinderGeometry args={[1, 1.3, trunkH, 6]} />
-        <meshStandardMaterial color="#5a3a1e" />
+        <meshStandardMaterial color="#5a3a1e" emissive="#5a3a1e" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[0, trunkH + canopyH / 2 - 1, 0]}>
         <coneGeometry args={[canopyR, canopyH, 8]} />
-        <meshStandardMaterial color={greens[variant % greens.length]} />
+        <meshStandardMaterial color={gc} emissive={gc} emissiveIntensity={0.4} />
       </mesh>
     </group>
   );
@@ -612,7 +670,7 @@ function StreetLamp({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 9, 0]}>
         <cylinderGeometry args={[0.3, 0.45, 18, 6]} />
-        <meshStandardMaterial color="#4a4a4a" />
+        <meshStandardMaterial color="#4a4a4a" emissive="#4a4a4a" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[0, 18.5, 0]}>
         <boxGeometry args={[1.5, 0.8, 1.5]} />
@@ -631,11 +689,11 @@ function ParkedCar({ position, rotation, variant }: { position: [number, number,
     <group position={position} rotation={[0, rotation, 0]}>
       <mesh position={[0, 1.25, 0]}>
         <boxGeometry args={[8, 2.5, 3.5]} />
-        <meshStandardMaterial color={color} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} />
       </mesh>
       <mesh position={[0, 3.1, 0]}>
         <boxGeometry args={[5, 2, 3.2]} />
-        <meshStandardMaterial color={color} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.25} />
       </mesh>
     </group>
   );
@@ -648,19 +706,19 @@ function ParkBench({ position, rotation }: { position: [number, number, number];
     <group position={position} rotation={[0, rotation, 0]}>
       <mesh position={[0, 0.9, 0]}>
         <boxGeometry args={[5, 0.3, 1.5]} />
-        <meshStandardMaterial color="#6b4226" />
+        <meshStandardMaterial color="#6b4226" emissive="#6b4226" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[0, 1.7, -0.65]} rotation={[0.15, 0, 0]}>
         <boxGeometry args={[5, 1.3, 0.2]} />
-        <meshStandardMaterial color="#6b4226" />
+        <meshStandardMaterial color="#6b4226" emissive="#6b4226" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[-2, 0.45, 0]}>
         <boxGeometry args={[0.3, 0.9, 1.2]} />
-        <meshStandardMaterial color="#3a3a3a" />
+        <meshStandardMaterial color="#3a3a3a" emissive="#3a3a3a" emissiveIntensity={0.3} />
       </mesh>
       <mesh position={[2, 0.45, 0]}>
         <boxGeometry args={[0.3, 0.9, 1.2]} />
-        <meshStandardMaterial color="#3a3a3a" />
+        <meshStandardMaterial color="#3a3a3a" emissive="#3a3a3a" emissiveIntensity={0.3} />
       </mesh>
     </group>
   );
@@ -673,15 +731,15 @@ function Fountain({ position }: { position: [number, number, number] }) {
     <group position={position}>
       <mesh position={[0, 1.2, 0]}>
         <cylinderGeometry args={[8, 8.5, 2.4, 16]} />
-        <meshStandardMaterial color="#707070" />
+        <meshStandardMaterial color="#707070" emissive="#707070" emissiveIntensity={0.25} />
       </mesh>
       <mesh position={[0, 3.4, 0]}>
         <cylinderGeometry args={[5, 5.5, 2, 12]} />
-        <meshStandardMaterial color="#808080" />
+        <meshStandardMaterial color="#808080" emissive="#808080" emissiveIntensity={0.25} />
       </mesh>
       <mesh position={[0, 5.6, 0]}>
         <cylinderGeometry args={[2.5, 3.2, 2, 10]} />
-        <meshStandardMaterial color="#909090" />
+        <meshStandardMaterial color="#909090" emissive="#909090" emissiveIntensity={0.25} />
       </mesh>
       <mesh position={[0, 7.2, 0]}>
         <cylinderGeometry args={[1.8, 2, 1.2, 10]} />
@@ -697,7 +755,7 @@ function Sidewalk({ position, size }: { position: [number, number, number]; size
   return (
     <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={size} />
-      <meshStandardMaterial color="#1a1a1e" />
+      <meshStandardMaterial color="#2a2a30" emissive="#2a2a30" emissiveIntensity={0.3} />
     </mesh>
   );
 }
@@ -754,14 +812,14 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
 
   // Shared materials
   const mats = useMemo(() => ({
-    treeTrunk: new THREE.MeshStandardMaterial({ color: "#5a3a1e" }),
-    treeCanopy: new THREE.MeshStandardMaterial({ color: "#2d5a1e" }),
-    lampPole: new THREE.MeshStandardMaterial({ color: "#4a4a4a" }),
+    treeTrunk: new THREE.MeshStandardMaterial({ color: "#5a3a1e", emissive: "#5a3a1e", emissiveIntensity: 0.35 }),
+    treeCanopy: new THREE.MeshStandardMaterial({ color: "#2d5a1e", emissive: "#2d5a1e", emissiveIntensity: 0.45 }),
+    lampPole: new THREE.MeshStandardMaterial({ color: "#4a4a4a", emissive: "#4a4a4a", emissiveIntensity: 0.3 }),
     lampLight: new THREE.MeshStandardMaterial({
       color: "#f0d870", emissive: "#f0d870", emissiveIntensity: 2.0, toneMapped: false,
     }),
-    carBody: new THREE.MeshStandardMaterial({ color: "#808080" }),
-    carCabin: new THREE.MeshStandardMaterial({ color: "#808080" }),
+    carBody: new THREE.MeshStandardMaterial({ color: "#808080", emissive: "#808080", emissiveIntensity: 0.2 }),
+    carCabin: new THREE.MeshStandardMaterial({ color: "#808080", emissive: "#808080", emissiveIntensity: 0.2 }),
   }), []);
 
   // Set up tree instances
@@ -887,27 +945,185 @@ function InstancedDecorations({ items }: { items: CityDecoration[] }) {
   );
 }
 
+// ─── River ───────────────────────────────────────────────────
+
+function River({ river, waterColor, waterEmissive }: { river: CityRiver; waterColor: string; waterEmissive: string }) {
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useFrame(({ clock }) => {
+    if (matRef.current) {
+      matRef.current.opacity = 0.82 + Math.sin(clock.elapsedTime * 0.5) * 0.05;
+    }
+  });
+
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[river.x + river.width / 2, 0.5, river.centerZ]}
+      renderOrder={1}
+    >
+      <planeGeometry args={[river.width, river.length]} />
+      <meshBasicMaterial
+        ref={matRef}
+        color={waterEmissive}
+        transparent
+        opacity={0.82}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+// ─── Bridge ──────────────────────────────────────────────────
+
+function Bridge({ bridge }: { bridge: CityBridge }) {
+  const [bx, , bz] = bridge.position;
+  const deckLength = bridge.width;
+  const deckWidth = 18;
+  const deckHeight = 1;
+  const deckY = 6;
+
+  const pillarCount = 3;
+  const pillarSpacing = deckLength / (pillarCount + 1);
+
+  return (
+    <group position={[bx, 0, bz]}>
+      {/* Deck */}
+      <mesh position={[0, deckY, 0]}>
+        <boxGeometry args={[deckLength, deckHeight, deckWidth]} />
+        <meshStandardMaterial color="#505860" emissive="#404850" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Guardrails */}
+      <mesh position={[0, deckY + 1, deckWidth / 2 - 0.2]}>
+        <boxGeometry args={[deckLength, 1.5, 0.4]} />
+        <meshStandardMaterial color="#606870" emissive="#505860" emissiveIntensity={0.3} />
+      </mesh>
+      <mesh position={[0, deckY + 1, -(deckWidth / 2 - 0.2)]}>
+        <boxGeometry args={[deckLength, 1.5, 0.4]} />
+        <meshStandardMaterial color="#606870" emissive="#505860" emissiveIntensity={0.3} />
+      </mesh>
+      {/* Pillars */}
+      {Array.from({ length: pillarCount }, (_, i) => {
+        const px = -deckLength / 2 + pillarSpacing * (i + 1);
+        return (
+          <group key={i}>
+            <mesh position={[px, deckY / 2, 0]}>
+              <boxGeometry args={[2.5, deckY, 2.5]} />
+              <meshStandardMaterial color="#404848" emissive="#303838" emissiveIntensity={0.3} />
+            </mesh>
+            {/* Suspension cables (simple lines from pillar tops to deck edges) */}
+            <mesh position={[px, deckY + 8, 0]}>
+              <boxGeometry args={[2, 16, 2]} />
+              <meshStandardMaterial color="#404848" emissive="#303838" emissiveIntensity={0.3} />
+            </mesh>
+            {/* Cable left */}
+            <mesh position={[px - deckLength * 0.12, deckY + 6, 0]} rotation={[0, 0, 0.35]}>
+              <boxGeometry args={[deckLength * 0.25, 0.3, 0.3]} />
+              <meshStandardMaterial color="#606060" emissive="#505050" emissiveIntensity={0.3} />
+            </mesh>
+            {/* Cable right */}
+            <mesh position={[px + deckLength * 0.12, deckY + 6, 0]} rotation={[0, 0, -0.35]}>
+              <boxGeometry args={[deckLength * 0.25, 0.3, 0.3]} />
+              <meshStandardMaterial color="#606060" emissive="#505050" emissiveIntensity={0.3} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// ─── Waterfront (Docks + Bollards) ──────────────────────────
+
+function Waterfront({ river, dockColor }: { river: CityRiver; dockColor: string }) {
+  const dockPlankRef = useRef<THREE.InstancedMesh>(null);
+  const bollardRef = useRef<THREE.InstancedMesh>(null);
+
+  const dockSpacing = 35;
+  const dockCount = 60; // 30 per side
+  const bollardsPerDock = 2;
+  const totalBollards = dockCount * bollardsPerDock;
+
+  const geos = useMemo(() => ({
+    plank: new THREE.BoxGeometry(8, 0.3, 4),
+    bollard: new THREE.CylinderGeometry(0.5, 0.5, 2, 8),
+  }), []);
+
+  const mats = useMemo(() => ({
+    plank: new THREE.MeshStandardMaterial({ color: dockColor, emissive: dockColor, emissiveIntensity: 0.35 }),
+    bollard: new THREE.MeshStandardMaterial({ color: "#808080", emissive: "#606060", emissiveIntensity: 0.3 }),
+  }), [dockColor]);
+
+  useEffect(() => {
+    if (!dockPlankRef.current || !bollardRef.current) return;
+    const leftX = river.x - 6; // left bank
+    const rightX = river.x + river.width + 6; // right bank
+    const halfRange = (dockCount / 2) * dockSpacing / 2;
+    let di = 0;
+    let bi = 0;
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3(1, 1, 1);
+    const p = new THREE.Vector3();
+    const m = new THREE.Matrix4();
+
+    for (let side = 0; side < 2; side++) {
+      const x = side === 0 ? leftX : rightX;
+      for (let i = 0; i < dockCount / 2; i++) {
+        const z = -halfRange + i * dockSpacing;
+        p.set(x, 0.2, z);
+        m.compose(p, q, s);
+        dockPlankRef.current.setMatrixAt(di++, m);
+
+        // Bollards at corners of dock
+        p.set(x - 3.5, 1.1, z - 1.5);
+        m.compose(p, q, s);
+        bollardRef.current.setMatrixAt(bi++, m);
+        p.set(x + 3.5, 1.1, z + 1.5);
+        m.compose(p, q, s);
+        bollardRef.current.setMatrixAt(bi++, m);
+      }
+    }
+
+    dockPlankRef.current.instanceMatrix.needsUpdate = true;
+    bollardRef.current.instanceMatrix.needsUpdate = true;
+  }, [river, dockCount, dockSpacing]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(geos).forEach(g => g.dispose());
+      Object.values(mats).forEach(m => m.dispose());
+    };
+  }, [geos, mats]);
+
+  return (
+    <>
+      <instancedMesh ref={dockPlankRef} args={[geos.plank, mats.plank, dockCount]} />
+      <instancedMesh ref={bollardRef} args={[geos.bollard, mats.bollard, totalBollards]} />
+    </>
+  );
+}
+
 // ─── Orbit Scene (controls + focus) ──────────────────────────
 
-function OrbitScene({ buildings, focusedBuilding }: { buildings: CityBuilding[]; focusedBuilding: string | null }) {
+function OrbitScene({ buildings, focusedBuilding, focusedBuildingB }: { buildings: CityBuilding[]; focusedBuilding: string | null; focusedBuildingB?: string | null }) {
   const controlsRef = useRef<any>(null);
   const { camera } = useThree();
 
   // Reset camera on mount
   useEffect(() => {
-    camera.position.set(300, 250, 400);
+    camera.position.set(400, 350, 500);
     camera.lookAt(0, 30, 0);
   }, [camera]);
 
   return (
     <>
-      <CameraFocus buildings={buildings} focusedBuilding={focusedBuilding} controlsRef={controlsRef} />
+      <CameraFocus buildings={buildings} focusedBuilding={focusedBuilding} focusedBuildingB={focusedBuildingB} controlsRef={controlsRef} />
       <OrbitControls
         ref={controlsRef}
         enableDamping
         dampingFactor={0.06}
         minDistance={40}
-        maxDistance={800}
+        maxDistance={1600}
         maxPolarAngle={Math.PI / 2.1}
         target={[0, 30, 0]}
         autoRotate
@@ -923,12 +1139,15 @@ interface Props {
   buildings: CityBuilding[];
   plazas: CityPlaza[];
   decorations: CityDecoration[];
+  river?: CityRiver | null;
+  bridges?: CityBridge[];
   flyMode: boolean;
   onExitFly: () => void;
   themeIndex: number;
   onHud?: (speed: number, altitude: number) => void;
   onPause?: (paused: boolean) => void;
   focusedBuilding?: string | null;
+  focusedBuildingB?: string | null;
   accentColor?: string;
   onClearFocus?: () => void;
   onBuildingClick?: (building: CityBuilding) => void;
@@ -937,36 +1156,48 @@ interface Props {
   flyHasOverlay?: boolean;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay }: Props) {
   const t = THEMES[themeIndex] ?? THEMES[0];
 
   return (
     <Canvas
-      camera={{ position: [200, 180, 300], fov: 55, near: 0.5, far: 2000 }}
+      camera={{ position: [400, 350, 500], fov: 55, near: 0.5, far: 4000 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}
     >
       <fog attach="fog" args={[t.fogColor, t.fogNear, t.fogFar]} key={`fog-${themeIndex}`} />
 
-      <ambientLight intensity={t.ambientIntensity} color={t.ambientColor} />
+      <ambientLight intensity={t.ambientIntensity * 2} color={t.ambientColor} />
       <directionalLight position={t.sunPos} intensity={t.sunIntensity * 2.5} color={t.sunColor} />
-      <directionalLight position={t.fillPos} intensity={t.fillIntensity * 1.5} color={t.fillColor} />
-      <hemisphereLight args={[t.hemiSky, t.hemiGround, t.hemiIntensity * 1.5]} key={`hemi-${themeIndex}`} />
+      <directionalLight position={t.fillPos} intensity={t.fillIntensity * 2} color={t.fillColor} />
+      <hemisphereLight args={[t.hemiSky, t.hemiGround, t.hemiIntensity * 2.5]} key={`hemi-${themeIndex}`} />
 
       <SkyDome key={`sky-${themeIndex}`} stops={t.sky} />
 
       {!flyMode && (
-        <OrbitScene buildings={buildings} focusedBuilding={focusedBuilding ?? null} />
+        <OrbitScene buildings={buildings} focusedBuilding={focusedBuilding ?? null} focusedBuildingB={focusedBuildingB} />
       )}
 
       {flyMode && <AirplaneFlight onExit={onExitFly} onHud={onHud ?? (() => {})} onPause={onPause ?? (() => {})} pauseSignal={flyPauseSignal} hasOverlay={flyHasOverlay} />}
 
       <Ground key={`ground-${themeIndex}`} color={t.groundColor} grid1={t.grid1} grid2={t.grid2} />
 
+      {river && (
+        <>
+          <River river={river} waterColor={t.waterColor} waterEmissive={t.waterEmissive} />
+          <Waterfront river={river} dockColor={t.dockColor} />
+        </>
+      )}
+
+      {bridges?.map((b, i) => (
+        <Bridge key={`bridge-${i}`} bridge={b} />
+      ))}
+
       <CityScene
         buildings={buildings}
         colors={t.building}
         focusedBuilding={focusedBuilding}
+        focusedBuildingB={focusedBuildingB}
         accentColor={t.building.accent}
         onBuildingClick={onBuildingClick}
         onFocusInfo={onFocusInfo}
