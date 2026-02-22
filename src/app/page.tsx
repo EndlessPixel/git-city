@@ -311,6 +311,7 @@ function HomeContent() {
   const [giftItems, setGiftItems] = useState<{ id: string; price_usd_cents: number }[] | null>(null);
   const [giftBuying, setGiftBuying] = useState<string | null>(null);
   const [compareCopied, setCompareCopied] = useState(false);
+  const [compareLang, setCompareLang] = useState<"en" | "pt">("en");
 
   // Derived — second focused building for dual-focus camera
   const focusedBuildingB = comparePair ? comparePair[1].login : null;
@@ -595,20 +596,39 @@ function HomeContent() {
   const compareParam = searchParams.get("compare");
   const didHandleCompareParam = useRef(false);
   useEffect(() => {
-    if (compareParam && buildings.length > 0 && !didHandleCompareParam.current) {
-      const parts = compareParam.split(",").map(s => s.trim().toLowerCase());
-      if (parts.length === 2 && parts[0] !== parts[1]) {
-        const bA = buildings.find(b => b.login.toLowerCase() === parts[0]);
-        const bB = buildings.find(b => b.login.toLowerCase() === parts[1]);
-        if (bA && bB) {
-          didHandleCompareParam.current = true;
-          setComparePair([bA, bB]);
-          setFocusedBuilding(bA.login);
-          setExploreMode(true);
-        }
-      }
+    if (!compareParam || buildings.length === 0 || didHandleCompareParam.current) return;
+    const parts = compareParam.split(",").map(s => s.trim().toLowerCase());
+    if (parts.length !== 2 || parts[0] === parts[1]) return;
+
+    const bA = buildings.find(b => b.login.toLowerCase() === parts[0]);
+    const bB = buildings.find(b => b.login.toLowerCase() === parts[1]);
+
+    if (bA && bB) {
+      didHandleCompareParam.current = true;
+      setComparePair([bA, bB]);
+      setFocusedBuilding(bA.login);
+      setExploreMode(true);
+      return;
     }
-  }, [compareParam, buildings]);
+
+    // One or both devs not loaded yet — fetch them, reload city, then compare
+    didHandleCompareParam.current = true;
+    (async () => {
+      const missing = [!bA ? parts[0] : null, !bB ? parts[1] : null].filter(Boolean);
+      await Promise.all(
+        missing.map(login => fetch(`/api/dev/${encodeURIComponent(login!)}`))
+      );
+      const updated = await reloadCity(true);
+      if (!updated) return;
+      const foundA = updated.find((b: CityBuilding) => b.login.toLowerCase() === parts[0]);
+      const foundB = updated.find((b: CityBuilding) => b.login.toLowerCase() === parts[1]);
+      if (foundA && foundB) {
+        setComparePair([foundA, foundB]);
+        setFocusedBuilding(foundA.login);
+        setExploreMode(true);
+      }
+    })();
+  }, [compareParam, buildings, reloadCity]);
 
   // Detect post-purchase redirect (?purchased=item_id)
   const purchasedParam = searchParams.get("purchased");
@@ -1542,183 +1562,137 @@ function HomeContent() {
       )}
 
       {/* ─── Comparison Panel ─── */}
-      {comparePair && (
+      {comparePair && (() => {
+        const compareStatDefs: { label: string; key: keyof CityBuilding; invert?: boolean }[] = [
+          { label: "Rank", key: "rank", invert: true },
+          { label: "Contributions", key: "contributions" },
+          { label: "Stars", key: "total_stars" },
+          { label: "Repos", key: "public_repos" },
+          { label: "Kudos", key: "kudos_count" },
+        ];
+        let totalAWins = 0;
+        let totalBWins = 0;
+        const cmpRows = compareStatDefs.map((s) => {
+          const a = (comparePair[0][s.key] as number) ?? 0;
+          const b = (comparePair[1][s.key] as number) ?? 0;
+          let aW = false, bW = false;
+          if (s.invert) { aW = a > 0 && (a < b || b === 0); bW = b > 0 && (b < a || a === 0); }
+          else { aW = a > b; bW = b > a; }
+          if (aW) totalAWins++;
+          if (bW) totalBWins++;
+          return { ...s, a, b, aW, bW };
+        });
+        const cmpTie = totalAWins === totalBWins;
+        const cmpWinner = totalAWins > totalBWins ? comparePair[0].login : comparePair[1].login;
+        const cmpSummary = cmpTie
+          ? `Tie ${totalAWins}-${totalBWins}`
+          : `@${cmpWinner} wins ${Math.max(totalAWins, totalBWins)}-${Math.min(totalAWins, totalBWins)}`;
+
+        return (
         <>
           <div className="pointer-events-auto fixed z-40
             bottom-0 left-0 right-0
             sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
           >
             <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
-              w-full sm:w-[420px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
-              max-h-[50vh] overflow-y-auto
+              w-full sm:w-[380px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
+              max-h-[55vh] overflow-y-auto
               animate-[slide-up_0.2s_ease-out] sm:animate-none"
             >
-              {/* Close */}
-              <button
-                onClick={() => { setSelectedBuilding(comparePair[0]); setFocusedBuilding(comparePair[0].login); setComparePair(null); setCompareBuilding(null); }}
-                className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream z-10"
-              >
-                ESC
-              </button>
-
               {/* Drag handle on mobile */}
               <div className="flex justify-center py-2 sm:hidden">
                 <div className="h-1 w-10 rounded-full bg-border" />
               </div>
 
-              {/* Avatars with vs + swap */}
-              <div className="flex items-center justify-center gap-3 px-4 pt-2 pb-3 sm:pt-4">
-                <Link href={`/dev/${comparePair[0].login}`} className="text-center min-w-0 group">
+              {/* ── Header: Avatars + VS ── */}
+              <div className="flex items-center justify-center gap-5 px-5 pt-1 pb-4 sm:pt-4">
+                <Link href={`/dev/${comparePair[0].login}`} className="flex flex-col items-center gap-1.5 group w-[110px]">
                   {comparePair[0].avatar_url && (
                     <Image
                       src={comparePair[0].avatar_url}
                       alt={comparePair[0].login}
-                      width={40}
-                      height={40}
-                      className="mx-auto border-[2px] border-border transition-colors group-hover:border-border-light"
-                      style={{ imageRendering: "pixelated" }}
+                      width={56}
+                      height={56}
+                      className="border-[3px] transition-colors group-hover:brightness-110"
+                      style={{
+                        imageRendering: "pixelated",
+                        borderColor: totalAWins >= totalBWins ? theme.accent : "#3a3a40",
+                      }}
                     />
                   )}
-                  <p className="mt-1 truncate text-[9px] text-muted normal-case max-w-[100px] transition-colors group-hover:text-cream">@{comparePair[0].login}</p>
+                  <p className="truncate text-[10px] text-cream normal-case max-w-[110px] transition-colors group-hover:text-white">@{comparePair[0].login}</p>
                 </Link>
 
-                {/* Swap button */}
-                <button
-                  onClick={() => setComparePair([comparePair[1], comparePair[0]])}
-                  className="flex flex-col items-center gap-0.5 group"
-                  title="Swap sides"
-                >
-                  <span className="text-sm" style={{ color: theme.accent }}>vs</span>
-                  <span className="text-[8px] text-muted transition-colors group-hover:text-cream">&#8644;</span>
-                </button>
+                <span className="text-base shrink-0" style={{ color: theme.accent }}>VS</span>
 
-                <Link href={`/dev/${comparePair[1].login}`} className="text-center min-w-0 group">
+                <Link href={`/dev/${comparePair[1].login}`} className="flex flex-col items-center gap-1.5 group w-[110px]">
                   {comparePair[1].avatar_url && (
                     <Image
                       src={comparePair[1].avatar_url}
                       alt={comparePair[1].login}
-                      width={40}
-                      height={40}
-                      className="mx-auto border-[2px] border-border transition-colors group-hover:border-border-light"
-                      style={{ imageRendering: "pixelated" }}
+                      width={56}
+                      height={56}
+                      className="border-[3px] transition-colors group-hover:brightness-110"
+                      style={{
+                        imageRendering: "pixelated",
+                        borderColor: totalBWins >= totalAWins ? theme.accent : "#3a3a40",
+                      }}
                     />
                   )}
-                  <p className="mt-1 truncate text-[9px] text-muted normal-case max-w-[100px] transition-colors group-hover:text-cream">@{comparePair[1].login}</p>
+                  <p className="truncate text-[10px] text-cream normal-case max-w-[110px] transition-colors group-hover:text-white">@{comparePair[1].login}</p>
                 </Link>
               </div>
 
-              {/* Stat rows with mirror bar charts */}
-              <div className="px-4 pb-3 space-y-2">
-                {([
-                  { label: "Rank", key: "rank" as const, invert: true },
-                  { label: "Contributions", key: "contributions" as const, invert: false },
-                  { label: "Stars", key: "total_stars" as const, invert: false },
-                  { label: "Repos", key: "public_repos" as const, invert: false },
-                  { label: "Kudos", key: "kudos_count" as const, invert: false },
-                ]).map((stat) => {
-                  const rawA = comparePair[0][stat.key] ?? 0;
-                  const rawB = comparePair[1][stat.key] ?? 0;
-                  const valA = typeof rawA === "number" ? rawA : 0;
-                  const valB = typeof rawB === "number" ? rawB : 0;
-                  const maxVal = Math.max(valA, valB, 1);
-                  const aWins = stat.invert ? (valA > 0 && (valA < valB || valB === 0)) : valA > valB;
-                  const bWins = stat.invert ? (valB > 0 && (valB < valA || valA === 0)) : valB > valA;
-                  const tie = valA === valB;
-
-                  return (
-                    <div key={stat.key}>
-                      <div className="text-[8px] text-muted text-center mb-1">{stat.label}</div>
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-12 text-right text-[10px] flex-shrink-0"
-                          style={{ color: aWins || tie ? theme.accent : "#666" }}
-                        >
-                          {stat.key === "rank" ? `#${valA}` : valA.toLocaleString()}
-                        </span>
-                        <div className="flex-1 h-[10px] bg-bg-card border border-border/30 flex justify-end overflow-hidden">
-                          <div
-                            className="h-full transition-all duration-500"
-                            style={{
-                              width: `${stat.invert ? (maxVal > 0 ? ((maxVal - valA + 1) / maxVal) * 100 : 0) : (valA / maxVal) * 100}%`,
-                              backgroundColor: aWins || tie ? theme.accent : "#333",
-                              opacity: aWins || tie ? 0.9 : 0.5,
-                            }}
-                          />
-                        </div>
-                        <div className="flex-1 h-[10px] bg-bg-card border border-border/30 flex justify-start overflow-hidden">
-                          <div
-                            className="h-full transition-all duration-500"
-                            style={{
-                              width: `${stat.invert ? (maxVal > 0 ? ((maxVal - valB + 1) / maxVal) * 100 : 0) : (valB / maxVal) * 100}%`,
-                              backgroundColor: bWins || tie ? theme.accent : "#333",
-                              opacity: bWins || tie ? 0.9 : 0.5,
-                            }}
-                          />
-                        </div>
-                        <span
-                          className="w-12 text-left text-[10px] flex-shrink-0"
-                          style={{ color: bWins || tie ? theme.accent : "#666" }}
-                        >
-                          {stat.key === "rank" ? `#${valB}` : valB.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Language row */}
-                <div>
-                  <div className="text-[8px] text-muted text-center mb-1">Language</div>
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px]" style={{ color: theme.accent }}>
-                      {comparePair[0].primary_language ?? "—"}
+              {/* ── Scoreboard ── */}
+              <div className="mx-4 border-[2px] border-border bg-bg-card">
+                {cmpRows.map((s, i) => (
+                  <div
+                    key={s.key}
+                    className={`flex items-center py-2 px-3 ${i < cmpRows.length - 1 ? "border-b border-border/40" : ""}`}
+                  >
+                    <span
+                      className="w-[72px] text-right text-[11px] tabular-nums"
+                      style={{ color: s.aW ? theme.accent : s.bW ? "#555" : "#888" }}
+                    >
+                      {s.key === "rank" ? `#${s.a}` : s.a.toLocaleString()}
                     </span>
-                    <span className="text-[8px] text-muted">vs</span>
-                    <span className="text-[10px]" style={{ color: theme.accent }}>
-                      {comparePair[1].primary_language ?? "—"}
+                    <span className="flex-1 text-center text-[8px] text-muted uppercase tracking-wider">
+                      {s.label}
+                    </span>
+                    <span
+                      className="w-[72px] text-left text-[11px] tabular-nums"
+                      style={{ color: s.bW ? theme.accent : s.aW ? "#555" : "#888" }}
+                    >
+                      {s.key === "rank" ? `#${s.b}` : s.b.toLocaleString()}
                     </span>
                   </div>
+                ))}
+                {/* Language row */}
+                <div className="flex items-center py-2 px-3 border-t border-border/40">
+                  <span className="w-[72px] text-right text-[10px]" style={{ color: theme.accent }}>
+                    {comparePair[0].primary_language ?? "—"}
+                  </span>
+                  <span className="flex-1 text-center text-[8px] text-muted uppercase tracking-wider">Lang</span>
+                  <span className="w-[72px] text-left text-[10px]" style={{ color: theme.accent }}>
+                    {comparePair[1].primary_language ?? "—"}
+                  </span>
                 </div>
               </div>
 
-              {/* Winner summary */}
-              {(() => {
-                const compareStats: { key: keyof CityBuilding; invert?: boolean }[] = [
-                  { key: "rank", invert: true },
-                  { key: "contributions" },
-                  { key: "total_stars" },
-                  { key: "public_repos" },
-                  { key: "kudos_count" },
-                ];
-                let aWins = 0;
-                let bWins = 0;
-                for (const s of compareStats) {
-                  const a = (comparePair[0][s.key] as number) ?? 0;
-                  const b = (comparePair[1][s.key] as number) ?? 0;
-                  if (s.invert) {
-                    if (a > 0 && (a < b || b === 0)) aWins++;
-                    else if (b > 0 && (b < a || a === 0)) bWins++;
-                  } else {
-                    if (a > b) aWins++;
-                    else if (b > a) bWins++;
-                  }
-                }
-                const isTie = aWins === bWins;
-                const winner = aWins > bWins ? comparePair[0].login : comparePair[1].login;
-                return (
-                  <div className="border-t border-border/30 mx-4 py-3 text-center">
-                    <span className="text-[10px]" style={{ color: theme.accent }}>
-                      {isTie
-                        ? `Tie ${aWins}-${bWins}`
-                        : `@${winner} wins ${Math.max(aWins, bWins)}-${Math.min(aWins, bWins)}`}
-                    </span>
-                  </div>
-                );
-              })()}
+              {/* ── Winner banner ── */}
+              <div
+                className="mx-4 mt-3 py-2.5 text-center text-[11px] uppercase tracking-wide"
+                style={{
+                  backgroundColor: `${theme.accent}15`,
+                  border: `2px solid ${theme.accent}40`,
+                  color: theme.accent,
+                }}
+              >
+                {cmpSummary}
+              </div>
 
-              {/* Actions */}
-              <div className="px-4 pb-2 flex gap-2">
-                {/* Share on X */}
+              {/* ── Actions ── */}
+              <div className="px-4 pt-3 pb-1 flex gap-2">
                 <a
                   href={`https://x.com/intent/tweet?text=${encodeURIComponent(
                     `@${comparePair[0].login} vs @${comparePair[1].login} in Git City by @samuelrizzondev — who has the better building?`
@@ -1735,7 +1709,6 @@ function HomeContent() {
                 >
                   Share on X
                 </a>
-                {/* Copy link */}
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(
@@ -1750,8 +1723,63 @@ function HomeContent() {
                 </button>
               </div>
 
-              {/* Compare again + Close */}
-              <div className="flex gap-2 px-4 pb-5 sm:pb-4">
+              {/* Download with lang toggle */}
+              <div className="px-4 flex items-center gap-2 pb-1">
+                <div className="flex gap-0.5 shrink-0">
+                  {(["en", "pt"] as const).map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => setCompareLang(l)}
+                      className="px-2 py-0.5 text-[9px] uppercase transition-colors"
+                      style={{
+                        color: compareLang === l ? theme.accent : "#666",
+                        borderBottom: compareLang === l ? `2px solid ${theme.accent}` : "2px solid transparent",
+                      }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/compare-card/${comparePair[0].login}/${comparePair[1].login}?format=landscape&lang=${compareLang}`);
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `gitcity-${comparePair[0].login}-vs-${comparePair[1].login}.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="btn-press flex-1 border-[2px] border-border py-1.5 text-center text-[9px] text-cream transition-colors hover:border-border-light"
+                >
+                  Card
+                </button>
+                <button
+                  onClick={async () => {
+                    const res = await fetch(`/api/compare-card/${comparePair[0].login}/${comparePair[1].login}?format=stories&lang=${compareLang}`);
+                    if (!res.ok) return;
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `gitcity-${comparePair[0].login}-vs-${comparePair[1].login}-stories.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="btn-press flex-1 border-[2px] border-border py-1.5 text-center text-[9px] text-cream transition-colors hover:border-border-light"
+                >
+                  Stories
+                </button>
+              </div>
+
+              {/* Compare Again + Close */}
+              <div className="flex gap-2 px-4 pt-1 pb-5 sm:pb-4">
                 <button
                   onClick={() => {
                     const first = comparePair[0];
@@ -1773,7 +1801,8 @@ function HomeContent() {
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
 
       {/* ─── Share Modal ─── */}
       {shareData && !flyMode && !exploreMode && (

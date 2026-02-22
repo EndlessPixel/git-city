@@ -2,6 +2,23 @@
   "name": "git-city",
   "version": "0.1.0",
   "private": true,
+  "description": "Your GitHub profile as a 3D pixel art building in an interactive city",
+  "homepage": "https://thegitcity.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srizzon/git-city"
+  },
+  "author": "Samuel Rizzon",
+  "license": "AGPL-3.0",
+  "keywords": [
+    "github",
+    "3d",
+    "visualization",
+    "three-js",
+    "pixel-art",
+    "react",
+    "nextjs"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

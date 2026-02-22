@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
+import { CompareRedirect } from "./compare-redirect";
 
 type Props = {
   params: Promise<{ userA: string; userB: string }>;
@@ -46,5 +46,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ComparePage({ params }: Props) {
   const { userA, userB } = await params;
-  redirect(`/?compare=${encodeURIComponent(userA)},${encodeURIComponent(userB)}`);
+  return <CompareRedirect userA={userA} userB={userB} />;
 }

@@ -42,6 +42,33 @@ export const metadata: Metadata = {
   },
 };
 
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ??
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000");
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  name: "Git City",
+  description:
+    "Your GitHub profile as a 3D pixel art building in an interactive city",
+  url: BASE_URL,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Web",
+  author: {
+    "@type": "Person",
+    name: "Samuel Rizzon",
+    url: "https://x.com/samuelrizzondev",
+  },
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -50,6 +77,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

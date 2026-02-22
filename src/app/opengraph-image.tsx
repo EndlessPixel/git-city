@@ -15,7 +15,57 @@ export default async function Image() {
   const bg = "#0d0d0f";
   const cream = "#e8dcc8";
   const border = "#2a2a30";
+  const cardBg = "#1c1c20";
   const muted = "#8c8c9c";
+
+  // Window rendering (same as compare)
+  const WSIZE = 20;
+  const WGAP = 8;
+  const WCOLS = 4;
+
+  function renderWindows(bHeight: number, color: string, seed: number) {
+    const rowH = WSIZE + WGAP;
+    const usable = bHeight - 30;
+    const nRows = Math.max(2, Math.floor(usable / rowH));
+    const rows = [];
+    for (let r = 0; r < nRows; r++) {
+      const cells = [];
+      for (let c = 0; c < WCOLS; c++) {
+        const lit = (r * 5 + c * 3 + seed * 7) % 7 > 1;
+        cells.push(
+          <div
+            key={c}
+            style={{
+              width: WSIZE,
+              height: WSIZE,
+              backgroundColor: lit ? color : `${color}18`,
+            }}
+          />
+        );
+      }
+      rows.push(
+        <div key={r} style={{ display: "flex", gap: WGAP }}>
+          {cells}
+        </div>
+      );
+    }
+    return rows;
+  }
+
+  // Skyline buildings — max height 180px so they never overlap the title zone
+  const GROUND_Y = 500;
+  const buildings = [
+    { x: 50, w: 100, h: 130 },
+    { x: 158, w: 80, h: 80 },
+    { x: 246, w: 110, h: 170 },
+    { x: 364, w: 90, h: 110 },
+    { x: 462, w: 120, h: 155 },
+    { x: 590, w: 80, h: 90 },
+    { x: 678, w: 110, h: 180 },
+    { x: 796, w: 90, h: 130 },
+    { x: 894, w: 120, h: 160 },
+    { x: 1022, w: 100, h: 105 },
+  ];
 
   return new ImageResponse(
     (
@@ -25,130 +75,143 @@ export default async function Image() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
           backgroundColor: bg,
           fontFamily: "Silkscreen",
           border: `6px solid ${border}`,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {/* Pixel corner decorations */}
+        {/* Title — positioned above buildings with z layering */}
         <div
           style={{
             position: "absolute",
-            top: 20,
-            left: 20,
-            width: 40,
-            height: 40,
-            borderTop: `4px solid ${accent}`,
-            borderLeft: `4px solid ${accent}`,
+            top: 0,
+            left: 0,
+            width: 1200,
+            height: GROUND_Y - 180,
             display: "flex",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: 20,
-            right: 20,
-            width: 40,
-            height: 40,
-            borderTop: `4px solid ${accent}`,
-            borderRight: `4px solid ${accent}`,
-            display: "flex",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: 20,
-            width: 40,
-            height: 40,
-            borderBottom: `4px solid ${accent}`,
-            borderLeft: `4px solid ${accent}`,
-            display: "flex",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: 20,
-            right: 20,
-            width: 40,
-            height: 40,
-            borderBottom: `4px solid ${accent}`,
-            borderRight: `4px solid ${accent}`,
-            display: "flex",
-          }}
-        />
-
-        {/* Title */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 16,
-            textTransform: "uppercase",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <span style={{ fontSize: 96, color: cream }}>GIT</span>
-          <span style={{ fontSize: 96, color: accent }}>CITY</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 20,
+              textTransform: "uppercase",
+            }}
+          >
+            <span style={{ fontSize: 110, color: cream }}>GIT</span>
+            <span style={{ fontSize: 110, color: accent }}>CITY</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              marginTop: 20,
+              fontSize: 26,
+              textTransform: "uppercase",
+              gap: 10,
+            }}
+          >
+            <span style={{ color: muted }}>Where code</span>
+            <span style={{ color: accent }}>builds cities</span>
+          </div>
         </div>
 
-        {/* Subtitle */}
-        <div
-          style={{
-            display: "flex",
-            marginTop: 24,
-            fontSize: 20,
-            color: muted,
-            textTransform: "uppercase",
-          }}
-        >
-          Your GitHub as a 3D City
-        </div>
+        {/* Buildings */}
+        {buildings.map((b, i) => {
+          const bColor = i % 2 === 0 ? accent : muted;
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: b.x,
+                top: GROUND_Y - b.h,
+                width: b.w,
+                height: b.h,
+                backgroundColor: cardBg,
+                borderTop: `6px solid ${bColor}`,
+                borderLeft: `3px solid ${bColor}50`,
+                borderRight: `3px solid ${bColor}50`,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                paddingTop: 14,
+                gap: WGAP,
+              }}
+            >
+              {renderWindows(b.h, bColor, i)}
+            </div>
+          );
+        })}
 
-        {/* Divider */}
+        {/* Ground line */}
         <div
           style={{
-            marginTop: 32,
-            width: 200,
+            position: "absolute",
+            left: 0,
+            top: GROUND_Y,
+            width: 1200,
             height: 4,
             backgroundColor: accent,
             display: "flex",
           }}
         />
 
-        {/* Tagline */}
+        {/* Ground fill */}
         <div
           style={{
+            position: "absolute",
+            left: 0,
+            top: GROUND_Y + 4,
+            width: 1200,
+            height: 130,
+            backgroundColor: "#141418",
             display: "flex",
-            marginTop: 32,
-            fontSize: 16,
-            color: muted,
-            textTransform: "uppercase",
-            gap: 12,
           }}
-        >
-          <span>Explore</span>
-          <span>·</span>
-          <span>Fly</span>
-          <span>·</span>
-          <span>Discover</span>
-        </div>
+        />
 
-        {/* Creator */}
+        {/* Tagline + branding */}
         <div
           style={{
             position: "absolute",
             bottom: 28,
-            right: 32,
+            left: 0,
+            width: 1200,
             display: "flex",
-            fontSize: 14,
-            color: muted,
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "0 40px",
           }}
         >
-          by @samuelrizzondev
+          <div
+            style={{
+              display: "flex",
+              fontSize: 20,
+              color: muted,
+              textTransform: "uppercase",
+              gap: 14,
+            }}
+          >
+            <span>Explore</span>
+            <span>·</span>
+            <span>Fly</span>
+            <span>·</span>
+            <span>Discover</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              fontSize: 18,
+              color: muted,
+            }}
+          >
+            by @samuelrizzondev
+          </div>
         </div>
       </div>
     ),

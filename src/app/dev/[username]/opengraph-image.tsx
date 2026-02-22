@@ -25,7 +25,7 @@ export default async function Image({
 
   const { data: dev } = await supabase
     .from("developers")
-    .select("github_login, name, avatar_url, contributions, public_repos, total_stars, rank, primary_language")
+    .select("github_login, name, avatar_url, contributions, public_repos, total_stars, rank, kudos_count")
     .eq("github_login", username.toLowerCase())
     .single();
 
@@ -65,10 +65,49 @@ export default async function Image({
     );
   }
 
+  // Window rendering (same as compare) — bigger windows for profile
+  const WSIZE = 24;
+  const WGAP = 10;
+  const WCOLS = 5;
+
+  function renderWindows(bHeight: number, color: string) {
+    const rowH = WSIZE + WGAP;
+    const usable = bHeight - 36;
+    const nRows = Math.max(2, Math.floor(usable / rowH));
+    const rows = [];
+    for (let r = 0; r < nRows; r++) {
+      const cells = [];
+      for (let c = 0; c < WCOLS; c++) {
+        const lit = (r * 5 + c * 3) % 7 > 1;
+        cells.push(
+          <div
+            key={c}
+            style={{
+              width: WSIZE,
+              height: WSIZE,
+              backgroundColor: lit ? color : `${color}18`,
+            }}
+          />
+        );
+      }
+      rows.push(
+        <div key={r} style={{ display: "flex", gap: WGAP }}>
+          {cells}
+        </div>
+      );
+    }
+    return rows;
+  }
+
+  // Building height — tall and dominant, scales with contributions
+  const buildingH = Math.round(Math.min(480, Math.max(320, 320 + (dev.contributions / 1000) * 160)));
+  const GROUND_Y = 550;
+
   const stats = [
-    { label: "CONTRIBUTIONS", value: dev.contributions.toLocaleString() },
+    { label: "CONTRIBS", value: dev.contributions.toLocaleString() },
     { label: "REPOS", value: dev.public_repos.toLocaleString() },
     { label: "STARS", value: dev.total_stars.toLocaleString() },
+    { label: "KUDOS", value: (dev.kudos_count ?? 0).toLocaleString() },
   ];
 
   return new ImageResponse(
@@ -78,134 +117,186 @@ export default async function Image({
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
           backgroundColor: bg,
           fontFamily: "Silkscreen",
-          padding: 60,
           border: `6px solid ${border}`,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {/* Top section: Avatar + Info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          {dev.avatar_url && (
-            <img
-              src={dev.avatar_url}
-              width={120}
-              height={120}
-              style={{
-                border: `4px solid ${border}`,
-              }}
-            />
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {dev.name && (
-              <div
-                style={{
-                  display: "flex",
-                  fontSize: 40,
-                  color: cream,
-                  textTransform: "uppercase",
-                }}
-              >
-                {dev.name}
-              </div>
-            )}
-            <div
-              style={{
-                display: "flex",
-                fontSize: 24,
-                color: muted,
-                textTransform: "uppercase",
-              }}
-            >
-              {`@${dev.github_login}`}
-            </div>
-            {dev.rank && (
-              <div
-                style={{
-                  display: "flex",
-                  fontSize: 18,
-                  color: accent,
-                  border: `3px solid ${accent}`,
-                  padding: "4px 12px",
-                  marginTop: 4,
-                  textTransform: "uppercase",
-                }}
-              >
-                {`#${dev.rank} in the city`}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Stats Grid */}
+        {/* Building — hero element */}
         <div
           style={{
+            position: "absolute",
+            left: 80,
+            top: GROUND_Y - buildingH,
+            width: 260,
+            height: buildingH,
+            backgroundColor: cardBg,
+            borderTop: `6px solid ${accent}`,
+            borderLeft: `3px solid ${accent}50`,
+            borderRight: `3px solid ${accent}50`,
             display: "flex",
-            gap: 20,
-            marginTop: 48,
-            flex: 1,
-          }}
-        >
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: cardBg,
-                border: `3px solid ${border}`,
-                padding: 24,
-              }}
-            >
-              <div style={{ display: "flex", fontSize: 48, color: accent }}>{stat.value}</div>
-              <div
-                style={{
-                  display: "flex",
-                  fontSize: 14,
-                  color: muted,
-                  marginTop: 12,
-                  textTransform: "uppercase",
-                }}
-              >
-                {stat.label}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom branding */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
+            flexDirection: "column",
             alignItems: "center",
-            marginTop: 32,
+            paddingTop: 16,
+            gap: WGAP,
           }}
         >
-          {dev.primary_language ? (
-            <div style={{ display: "flex", fontSize: 16, color: muted, textTransform: "uppercase" }}>
-              {dev.primary_language}
+          {renderWindows(buildingH, accent)}
+        </div>
+
+        {/* Right column: Info + Stats */}
+        <div
+          style={{
+            position: "absolute",
+            left: 420,
+            top: 40,
+            width: 720,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Avatar + Name + Login */}
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            {dev.avatar_url && (
+              <img
+                src={dev.avatar_url}
+                width={120}
+                height={120}
+                style={{
+                  border: `4px solid ${accent}`,
+                }}
+              />
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {dev.name && (
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: 48,
+                    color: cream,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {dev.name}
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 26,
+                  color: muted,
+                  textTransform: "uppercase",
+                }}
+              >
+                {`@${dev.github_login}`}
+              </div>
+              {dev.rank && (
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: 20,
+                    color: accent,
+                    border: `3px solid ${accent}`,
+                    padding: "6px 16px",
+                    marginTop: 4,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {`#${dev.rank} in the city`}
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ display: "flex" }} />
-          )}
+          </div>
+
+          {/* Stats — 2x2 grid */}
           <div
             style={{
               display: "flex",
-              alignItems: "baseline",
-              gap: 8,
-              textTransform: "uppercase",
+              flexWrap: "wrap",
+              gap: 20,
+              marginTop: 40,
             }}
           >
-            <span style={{ fontSize: 20, color: cream }}>GIT</span>
-            <span style={{ fontSize: 20, color: accent }}>CITY</span>
-            <span style={{ fontSize: 13, color: muted, marginLeft: 8 }}>by @samuelrizzondev</span>
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                style={{
+                  width: 320,
+                  display: "flex",
+                  flexDirection: "column",
+                  backgroundColor: cardBg,
+                  border: `3px solid ${border}`,
+                  padding: "16px 24px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: 18,
+                    color: muted,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {stat.label}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: 48,
+                    color: accent,
+                    marginTop: 4,
+                  }}
+                >
+                  {stat.value}
+                </div>
+              </div>
+            ))}
           </div>
+        </div>
+
+        {/* Ground line */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: GROUND_Y,
+            width: 1200,
+            height: 4,
+            backgroundColor: accent,
+            display: "flex",
+          }}
+        />
+
+        {/* Ground fill */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: GROUND_Y + 4,
+            width: 1200,
+            height: 90,
+            backgroundColor: "#141418",
+            display: "flex",
+          }}
+        />
+
+        {/* Branding bottom-right */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 16,
+            right: 40,
+            display: "flex",
+            alignItems: "baseline",
+            gap: 10,
+            textTransform: "uppercase",
+          }}
+        >
+          <span style={{ fontSize: 28, color: cream }}>GIT</span>
+          <span style={{ fontSize: 28, color: accent }}>CITY</span>
+          <span style={{ fontSize: 16, color: muted, marginLeft: 8 }}>by @samuelrizzondev</span>
         </div>
       </div>
     ),

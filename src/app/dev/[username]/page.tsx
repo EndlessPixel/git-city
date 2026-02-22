@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import type { TopRepo } from "@/lib/github";
 import { getOwnedItems } from "@/lib/items";
-import { TIER_COLORS, TIER_EMOJI } from "@/lib/achievements";
+import { TIER_COLORS } from "@/lib/achievements";
 import { ITEM_NAMES } from "@/lib/zones";
 import ClaimButton from "@/components/ClaimButton";
 import ShareButtons from "@/components/ShareButtons";
+import CompareChallenge from "@/components/CompareChallenge";
+import ReferralCTA from "@/components/ReferralCTA";
 
 export const revalidate = 3600; // ISR: regenerate every 1 hour
 
@@ -65,7 +66,7 @@ export default async function DevPage({ params }: Props) {
   if (!dev) notFound();
 
   const accent = "#c8e64a";
-  const topRepos: TopRepo[] = dev.top_repos ?? [];
+  const shadow = "#5a7a00";
   const ownedItems = await getOwnedItems(dev.id);
 
   // Fetch achievements with name+tier from DB (no hardcoded maps)
@@ -98,8 +99,49 @@ export default async function DevPage({ params }: Props) {
   ).toLowerCase();
   const isOwner = !!user && authLogin === dev.github_login.toLowerCase() && dev.claimed;
 
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ??
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000");
+
+  const profileJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: {
+      "@type": "Person",
+      name: dev.name ?? dev.github_login,
+      alternateName: dev.github_login,
+      image: dev.avatar_url,
+      url: `${baseUrl}/dev/${dev.github_login}`,
+      sameAs: `https://github.com/${dev.github_login}`,
+    },
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Git City", item: baseUrl },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `@${dev.github_login}`,
+        item: `${baseUrl}/dev/${dev.github_login}`,
+      },
+    ],
+  };
+
   return (
     <main className="min-h-screen bg-bg font-pixel uppercase text-warm">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <div className="mx-auto max-w-2xl px-3 py-6 sm:px-4 sm:py-10">
         {/* Header */}
         <Link
@@ -159,7 +201,7 @@ export default async function DevPage({ params }: Props) {
             className="btn-press flex w-full items-center justify-center gap-2 px-6 py-3.5 text-sm text-bg"
             style={{
               backgroundColor: accent,
-              boxShadow: "4px 4px 0 0 #5a7a00",
+              boxShadow: `4px 4px 0 0 ${shadow}`,
             }}
           >
             View in City
@@ -177,6 +219,20 @@ export default async function DevPage({ params }: Props) {
             </Link>
           </div>
         )}
+
+        {/* Share + Compare */}
+        <div className="mt-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ShareButtons
+              login={dev.github_login}
+              contributions={dev.contributions}
+              rank={dev.rank}
+              accent={accent}
+              shadow={shadow}
+            />
+          </div>
+          <CompareChallenge login={dev.github_login} accent={accent} shadow={shadow} />
+        </div>
 
         {/* Stats Grid */}
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -247,6 +303,13 @@ export default async function DevPage({ params }: Props) {
           </div>
         )}
 
+        {/* Referral CTA — only for the logged-in owner */}
+        {isOwner && (
+          <div className="mt-5">
+            <ReferralCTA login={dev.github_login} accent={accent} />
+          </div>
+        )}
+
         {/* Referred Developers */}
         {referredDevs && referredDevs.length > 0 && (
           <div className="mt-5">
@@ -278,47 +341,8 @@ export default async function DevPage({ params }: Props) {
           </div>
         )}
 
-        {/* Top Repos */}
-        {topRepos.length > 0 && (
-          <div className="mt-8">
-            <h2 className="mb-4 text-sm text-cream">Top Repos</h2>
-            <div className="space-y-2">
-              {topRepos.map((repo) => (
-                <a
-                  key={repo.name}
-                  href={repo.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between border-[3px] border-border bg-bg-card px-5 py-3.5 transition-colors hover:border-border-light"
-                >
-                  <span className="text-sm text-cream normal-case">
-                    {repo.name}
-                  </span>
-                  <div className="flex items-center gap-4 text-xs text-muted">
-                    {repo.language && <span>{repo.language}</span>}
-                    <span style={{ color: accent }}>
-                      &#9733; {repo.stars}
-                    </span>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Share */}
-        <div className="mt-10 flex justify-center">
-          <ShareButtons
-            login={dev.github_login}
-            contributions={dev.contributions}
-            rank={dev.rank}
-            accent={accent}
-            shadow="#5a7a00"
-          />
-        </div>
-
         {/* GitHub link */}
-        <div className="mt-6 text-center">
+        <div className="mt-8 text-center">
           <a
             href={`https://github.com/${dev.github_login}`}
             target="_blank"
