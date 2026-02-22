@@ -43,6 +43,9 @@ export interface CityBuilding {
   owned_items: string[];
   custom_color?: string | null;
   billboard_images?: string[];
+  achievements: string[];
+  kudos_count: number;
+  loadout?: { crown: string | null; roof: string | null; aura: string | null } | null;
   position: [number, number, number];
   width: number;
   depth: number;
@@ -210,6 +213,9 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
         owned_items: dev.owned_items ?? [],
         custom_color: dev.custom_color ?? null,
         billboard_images: dev.billboard_images ?? [],
+        achievements: (dev as unknown as Record<string, unknown>).achievements as string[] ?? [],
+        kudos_count: (dev as unknown as Record<string, unknown>).kudos_count as number ?? 0,
+        loadout: (dev as unknown as Record<string, unknown>).loadout as CityBuilding["loadout"] ?? null,
         position: [posX, 0, posZ],
         width: w,
         depth: d,

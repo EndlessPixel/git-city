@@ -64,6 +64,24 @@ export async function POST(request: Request) {
               provider_tx_id: paymentIntentId ?? session.id,
             })
             .eq("id", pending.id);
+
+          // Insert feed event
+          const githubLogin = session.metadata?.github_login;
+          const giftedTo = session.metadata?.gifted_to;
+          if (giftedTo) {
+            await sb.from("activity_feed").insert({
+              event_type: "gift_sent",
+              actor_id: Number(developerId),
+              target_id: Number(giftedTo),
+              metadata: { giver_login: githubLogin, item_id: itemId },
+            });
+          } else {
+            await sb.from("activity_feed").insert({
+              event_type: "item_purchased",
+              actor_id: Number(developerId),
+              metadata: { login: githubLogin, item_id: itemId },
+            });
+          }
         } else {
           // Check if already completed (webhook duplicate)
           const { data: existing } = await sb

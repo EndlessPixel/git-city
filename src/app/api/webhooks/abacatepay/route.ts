@@ -76,6 +76,36 @@ export async function POST(request: Request) {
             .from("purchases")
             .update({ status: "completed" })
             .eq("id", purchase.id);
+
+          // Insert feed event
+          const { data: fullPurchase } = await sb
+            .from("purchases")
+            .select("developer_id, item_id, gifted_to")
+            .eq("id", purchase.id)
+            .single();
+
+          if (fullPurchase) {
+            const { data: dev } = await sb
+              .from("developers")
+              .select("github_login")
+              .eq("id", fullPurchase.developer_id)
+              .single();
+
+            if (fullPurchase.gifted_to) {
+              await sb.from("activity_feed").insert({
+                event_type: "gift_sent",
+                actor_id: fullPurchase.developer_id,
+                target_id: fullPurchase.gifted_to,
+                metadata: { giver_login: dev?.github_login, item_id: fullPurchase.item_id },
+              });
+            } else {
+              await sb.from("activity_feed").insert({
+                event_type: "item_purchased",
+                actor_id: fullPurchase.developer_id,
+                metadata: { login: dev?.github_login, item_id: fullPurchase.item_id },
+              });
+            }
+          }
         }
         // If already completed, ignore (duplicate webhook)
         break;

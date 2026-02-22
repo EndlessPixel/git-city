@@ -13,6 +13,8 @@ import {
 } from "@/lib/github";
 import Image from "next/image";
 import Link from "next/link";
+import ActivityTicker, { type FeedEvent } from "@/components/ActivityTicker";
+import ActivityPanel from "@/components/ActivityPanel";
 
 const CityCanvas = dynamic(() => import("@/components/CityCanvas"), {
   ssr: false,
@@ -22,10 +24,32 @@ const THEMES = [
   { name: "Sunset",   accent: "#c8e64a", shadow: "#5a7a00" },
   { name: "Midnight", accent: "#6090e0", shadow: "#203870" },
   { name: "Neon",     accent: "#e040c0", shadow: "#600860" },
-  { name: "Dawn",     accent: "#e08860", shadow: "#804020" },
-  { name: "Emerald",  accent: "#39d353", shadow: "#0e4429" },
-  { name: "Vapor",    accent: "#e060a0", shadow: "#602050" },
+  { name: "Emerald",  accent: "#f0c060", shadow: "#806020" },
 ];
+
+// Achievement display data for profile card (client-side, mirrors DB)
+const TIER_COLORS_MAP: Record<string, string> = {
+  bronze: "#cd7f32", silver: "#c0c0c0", gold: "#ffd700", diamond: "#b9f2ff",
+};
+const TIER_EMOJI_MAP: Record<string, string> = {
+  bronze: "\uD83D\uDFE4", silver: "\u26AA", gold: "\uD83D\uDFE1", diamond: "\uD83D\uDC8E",
+};
+const ACHIEVEMENT_TIERS_MAP: Record<string, string> = {
+  god_mode: "diamond", legend: "diamond", famous: "diamond", mayor: "diamond",
+  machine: "gold", popular: "gold", factory: "gold", influencer: "gold", philanthropist: "gold", icon: "gold", legendary: "gold",
+  grinder: "silver", architect: "silver", patron: "silver", beloved: "silver", admired: "silver",
+  first_push: "bronze", committed: "bronze", builder: "bronze", rising_star: "bronze",
+  recruiter: "bronze", generous: "bronze", gifted: "bronze", appreciated: "bronze",
+};
+const ACHIEVEMENT_NAMES_MAP: Record<string, string> = {
+  god_mode: "God Mode", legend: "Legend", famous: "Famous", mayor: "Mayor",
+  machine: "Machine", popular: "Popular", factory: "Factory", influencer: "Influencer",
+  grinder: "Grinder", architect: "Architect", builder: "Builder", rising_star: "Rising Star",
+  recruiter: "Recruiter", committed: "Committed", first_push: "First Push",
+  philanthropist: "Philanthropist", patron: "Patron", generous: "Generous",
+  icon: "Icon", beloved: "Beloved", gifted: "Gifted",
+  legendary: "Legendary", admired: "Admired", appreciated: "Appreciated",
+};
 
 interface CityStats {
   total_developers: number;
@@ -157,6 +181,80 @@ function SearchFeedback({
   );
 }
 
+const LEADERBOARD_CATEGORIES = [
+  { label: "Contributors", key: "contributions" as const, tab: "contributors" },
+  { label: "Stars", key: "total_stars" as const, tab: "stars" },
+  { label: "Repos", key: "public_repos" as const, tab: "architects" },
+] as const;
+
+function MiniLeaderboard({ buildings, accent }: { buildings: CityBuilding[]; accent: string }) {
+  const [catIndex, setCatIndex] = useState(0);
+
+  // Auto-rotate every 10s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCatIndex((i) => (i + 1) % LEADERBOARD_CATEGORIES.length);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const cat = LEADERBOARD_CATEGORIES[catIndex];
+  const sorted = buildings
+    .slice()
+    .sort((a, b) => (b[cat.key] as number) - (a[cat.key] as number))
+    .slice(0, 5);
+
+  return (
+    <div className="hidden w-[200px] sm:block">
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          onClick={() => setCatIndex((i) => (i + 1) % LEADERBOARD_CATEGORIES.length)}
+          className="text-[10px] text-muted transition-colors hover:text-cream normal-case"
+          style={{ color: accent }}
+        >
+          {cat.label}
+        </button>
+        <a
+          href={`/leaderboard?tab=${cat.tab}`}
+          className="text-[9px] text-muted transition-colors hover:text-cream normal-case"
+        >
+          View all &rarr;
+        </a>
+      </div>
+      <div className="border-[2px] border-border bg-bg-raised/80 backdrop-blur-sm">
+        {sorted.map((b, i) => (
+          <a
+            key={b.login}
+            href={`/dev/${b.login}`}
+            className="flex items-center justify-between px-3 py-1.5 transition-colors hover:bg-bg-card"
+          >
+            <span className="flex items-center gap-2 overflow-hidden">
+              <span
+                className="text-[10px]"
+                style={{
+                  color:
+                    i === 0 ? "#ffd700"
+                    : i === 1 ? "#c0c0c0"
+                    : i === 2 ? "#cd7f32"
+                    : accent,
+                }}
+              >
+                #{i + 1}
+              </span>
+              <span className="truncate text-[10px] text-cream normal-case">
+                {b.login}
+              </span>
+            </span>
+            <span className="ml-2 flex-shrink-0 text-[10px] text-muted">
+              {(b[cat.key] as number).toLocaleString()}
+            </span>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function HomeContent() {
   const searchParams = useSearchParams();
   const userParam = searchParams.get("user");
@@ -195,6 +293,12 @@ function HomeContent() {
   const [selectedBuilding, setSelectedBuilding] = useState<CityBuilding | null>(null);
   const [giftClaimed, setGiftClaimed] = useState(false);
   const [claimingGift, setClaimingGift] = useState(false);
+  const [feedEvents, setFeedEvents] = useState<FeedEvent[]>([]);
+  const [feedPanelOpen, setFeedPanelOpen] = useState(false);
+  const [kudosSending, setKudosSending] = useState(false);
+  const [kudosSent, setKudosSent] = useState(false);
+  const [focusDist, setFocusDist] = useState(999);
+  const visitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -225,6 +329,92 @@ function HomeContent() {
     session?.user?.user_metadata?.preferred_username ??
     ""
   ).toLowerCase();
+
+  // Save ?ref= to localStorage (7-day expiry)
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      try {
+        localStorage.setItem("gc_ref", JSON.stringify({ login: ref, expires: Date.now() + 7 * 86400000 }));
+      } catch { /* ignore */ }
+    }
+  }, [searchParams]);
+
+  // Forward ref from localStorage to auth callback URL
+  const handleSignInWithRef = useCallback(async () => {
+    const supabase = createBrowserSupabase();
+    let redirectTo = `${window.location.origin}/auth/callback`;
+    try {
+      const raw = localStorage.getItem("gc_ref");
+      if (raw) {
+        const { login, expires } = JSON.parse(raw);
+        if (Date.now() < expires && login) {
+          redirectTo += `?ref=${encodeURIComponent(login)}`;
+        }
+      }
+    } catch { /* ignore */ }
+    await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo },
+    });
+  }, []);
+
+  // Fetch activity feed on mount + poll every 60s
+  useEffect(() => {
+    let cancelled = false;
+    const fetchFeed = async () => {
+      try {
+        const res = await fetch("/api/feed?limit=20");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setFeedEvents(data.events ?? []);
+      } catch { /* ignore */ }
+    };
+    fetchFeed();
+    const interval = setInterval(fetchFeed, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  // Visit tracking: fire visit POST after 3s of profile card open
+  useEffect(() => {
+    if (selectedBuilding && session && selectedBuilding.login.toLowerCase() !== authLogin) {
+      visitTimerRef.current = setTimeout(async () => {
+        try {
+          const building = buildings.find(b => b.login === selectedBuilding.login);
+          if (!building) return;
+          await fetch("/api/interactions/visit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ building_login: selectedBuilding.login }),
+          });
+        } catch { /* ignore */ }
+      }, 3000);
+    }
+    return () => {
+      if (visitTimerRef.current) clearTimeout(visitTimerRef.current);
+    };
+  }, [selectedBuilding, session, authLogin, buildings]);
+
+  // Kudos handler
+  const handleGiveKudos = useCallback(async () => {
+    if (!selectedBuilding || kudosSending || kudosSent || !session) return;
+    if (selectedBuilding.login.toLowerCase() === authLogin) return;
+    setKudosSending(true);
+    try {
+      const res = await fetch("/api/interactions/kudos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiver_login: selectedBuilding.login }),
+      });
+      if (res.ok) {
+        setKudosSent(true);
+        setTimeout(() => setKudosSent(false), 3000);
+      }
+    } catch { /* ignore */ }
+    finally { setKudosSending(false); }
+  }, [selectedBuilding, kudosSending, kudosSent, session, authLogin]);
+
+  const lastDistRef = useRef(999);
 
   // ESC: layered dismissal
   // During fly mode: only close overlays (profile card) — AirplaneFlight handles pause/exit
@@ -419,13 +609,7 @@ function HomeContent() {
     searchUser();
   };
 
-  const handleSignIn = async () => {
-    const supabase = createBrowserSupabase();
-    await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
+  const handleSignIn = handleSignInWithRef;
 
   const handleSignOut = async () => {
     await fetch("/api/auth/signout", { method: "POST" });
@@ -492,9 +676,12 @@ function HomeContent() {
         onClearFocus={() => setFocusedBuilding(null)}
         flyPauseSignal={flyPauseSignal}
         flyHasOverlay={!!selectedBuilding}
+        onFocusInfo={() => {}}
         onBuildingClick={(b) => {
           setSelectedBuilding(b);
           setFocusedBuilding(b.login);
+          lastDistRef.current = 999;
+          setFocusDist(999);
           if (flyMode) {
             // Auto-pause flight to show profile card
             setFlyPauseSignal(s => s + 1);
@@ -619,14 +806,31 @@ function HomeContent() {
             </button>
           </div>
 
-          {/* Navigation hints (bottom-right) */}
-          <div className="absolute bottom-3 right-3 text-right text-[8px] leading-loose text-muted sm:bottom-4 sm:right-4 sm:text-[9px]">
-            <div><span className="text-cream">Drag</span> orbit</div>
-            <div><span className="text-cream">Scroll</span> zoom</div>
-            <div><span className="text-cream">Right-drag</span> pan</div>
-            <div><span className="text-cream">Click</span> building</div>
-            <div><span style={{ color: theme.accent }}>ESC</span> back</div>
-          </div>
+          {/* Feed toggle (top-right) */}
+          {feedEvents.length >= 3 && (
+            <div className="pointer-events-auto absolute top-3 right-3 sm:top-4 sm:right-4">
+              <button
+                onClick={() => setFeedPanelOpen(true)}
+                className="flex items-center gap-2 border-[3px] border-border bg-bg/70 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent + "80")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "")}
+              >
+                <span style={{ color: theme.accent }}>&#9679;</span>
+                <span className="text-cream">Feed</span>
+              </button>
+            </div>
+          )}
+
+          {/* Navigation hints (bottom-right) — hidden when building card is open */}
+          {!selectedBuilding && (
+            <div className="absolute bottom-3 right-3 text-right text-[8px] leading-loose text-muted sm:bottom-4 sm:right-4 sm:text-[9px]">
+              <div><span className="text-cream">Drag</span> orbit</div>
+              <div><span className="text-cream">Scroll</span> zoom</div>
+              <div><span className="text-cream">Right-drag</span> pan</div>
+              <div><span className="text-cream">Click</span> building</div>
+              <div><span style={{ color: theme.accent }}>ESC</span> back</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -851,53 +1055,9 @@ function HomeContent() {
               </p>
             </div>
 
-            {/* Mini Leaderboard - hidden on mobile */}
+            {/* Mini Leaderboard - hidden on mobile, rotates categories */}
             {buildings.length > 0 && (
-              <div className="hidden w-[200px] sm:block">
-                <a
-                  href="/leaderboard"
-                  className="mb-2 block text-right text-xs text-muted transition-colors hover:text-cream normal-case"
-                >
-                  Leaderboard &rarr;
-                </a>
-                <div className="border-[2px] border-border bg-bg-raised/80 backdrop-blur-sm">
-                  {buildings
-                    .slice()
-                    .sort((a, b) => a.rank - b.rank)
-                    .slice(0, 5)
-                    .map((b) => (
-                      <a
-                        key={b.login}
-                        href={`/dev/${b.login}`}
-                        className="flex items-center justify-between px-3 py-1.5 transition-colors hover:bg-bg-card"
-                      >
-                        <span className="flex items-center gap-2 overflow-hidden">
-                          <span
-                            className="text-[10px]"
-                            style={{
-                              color:
-                                b.rank === 1
-                                  ? "#ffd700"
-                                  : b.rank === 2
-                                    ? "#c0c0c0"
-                                    : b.rank === 3
-                                      ? "#cd7f32"
-                                      : theme.accent,
-                            }}
-                          >
-                            #{b.rank}
-                          </span>
-                          <span className="truncate text-[10px] text-cream normal-case">
-                            {b.login}
-                          </span>
-                        </span>
-                        <span className="ml-2 flex-shrink-0 text-[10px] text-muted">
-                          {b.contributions.toLocaleString()}
-                        </span>
-                      </a>
-                    ))}
-                </div>
-              </div>
+              <MiniLeaderboard buildings={buildings} accent={theme.accent} />
             )}
           </div>
         </div>
@@ -918,101 +1078,210 @@ function HomeContent() {
         </div>
       )}
 
-      {/* ─── Navigation Hints (bottom-right, when building selected) ─── */}
-      {selectedBuilding && (!flyMode || flyPaused) && (
-        <div className="pointer-events-none fixed bottom-3 right-3 z-30 text-right text-[8px] leading-loose text-muted sm:bottom-6 sm:right-6 sm:text-[9px]">
-          <div><span className="text-cream">Drag</span> orbit</div>
-          <div><span className="text-cream">Scroll</span> zoom</div>
-          <div><span className="text-cream">Right-drag</span> pan</div>
-          <div><span style={{ color: theme.accent }}>ESC</span> close</div>
-        </div>
-      )}
-
       {/* ─── Building Profile Card ─── */}
+      {/* Desktop: right edge, vertically centered. Mobile: bottom sheet, centered. */}
       {selectedBuilding && (!flyMode || flyPaused) && (
-        <div className="pointer-events-auto fixed bottom-3 left-3 z-40 sm:bottom-6 sm:left-6">
-          <div className="relative border-[3px] border-border bg-bg-raised/95 backdrop-blur-sm w-[280px] sm:w-[320px]">
-            {/* Close */}
-            <button
-              onClick={() => { setSelectedBuilding(null); setFocusedBuilding(null); }}
-              className="absolute top-2 right-2 text-[10px] text-muted transition-colors hover:text-cream z-10"
+        <>
+          {/* Backdrop on mobile — tap to close */}
+          <div
+            className="fixed inset-0 z-[35] sm:hidden"
+            onClick={() => { setSelectedBuilding(null); setFocusedBuilding(null); }}
+          />
+
+          {/* Nav hints — only on desktop, bottom-right */}
+          <div className="pointer-events-none fixed bottom-6 right-6 z-30 hidden text-right text-[9px] leading-loose text-muted sm:block">
+            <div><span className="text-cream">Drag</span> orbit</div>
+            <div><span className="text-cream">Scroll</span> zoom</div>
+            <div><span style={{ color: theme.accent }}>ESC</span> close</div>
+          </div>
+
+          {/* Card container — mobile: bottom sheet, desktop: fixed right side */}
+          <div className="pointer-events-auto fixed z-40
+            bottom-0 left-0 right-0
+            sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
+          >
+            <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
+              w-full sm:w-[320px] sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
+              animate-[slide-up_0.2s_ease-out] sm:animate-none"
             >
-              ESC
-            </button>
+              {/* Close */}
+              <button
+                onClick={() => { setSelectedBuilding(null); setFocusedBuilding(null); }}
+                className="absolute top-2 right-3 text-[10px] text-muted transition-colors hover:text-cream z-10"
+              >
+                ESC
+              </button>
 
-            {/* Header with avatar + name */}
-            <div className="flex items-center gap-3 p-4 pb-3">
-              {selectedBuilding.avatar_url && (
-                <Image
-                  src={selectedBuilding.avatar_url}
-                  alt={selectedBuilding.login}
-                  width={48}
-                  height={48}
-                  className="border-[2px] border-border flex-shrink-0"
-                  style={{ imageRendering: "pixelated" }}
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                {selectedBuilding.name && (
-                  <p className="truncate text-sm text-cream">{selectedBuilding.name}</p>
-                )}
-                <p className="truncate text-[10px] text-muted">@{selectedBuilding.login}</p>
-                {selectedBuilding.claimed && (
-                  <span
-                    className="mt-1 inline-block px-1.5 py-0.5 text-[8px] text-bg"
-                    style={{ backgroundColor: theme.accent }}
-                  >
-                    Claimed
-                  </span>
-                )}
+              {/* Drag handle on mobile */}
+              <div className="flex justify-center py-2 sm:hidden">
+                <div className="h-1 w-10 rounded-full bg-border" />
               </div>
-            </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-px bg-border/30 mx-4 mb-3 border border-border/50">
-              {[
-                { label: "Rank", value: `#${selectedBuilding.rank}` },
-                { label: "Contribs", value: selectedBuilding.contributions.toLocaleString() },
-                { label: "Repos", value: selectedBuilding.public_repos.toLocaleString() },
-                { label: "Stars", value: selectedBuilding.total_stars.toLocaleString() },
-              ].map((s) => (
-                <div key={s.label} className="bg-bg-card p-2 text-center">
-                  <div className="text-xs" style={{ color: theme.accent }}>{s.value}</div>
-                  <div className="text-[8px] text-muted mt-0.5">{s.label}</div>
+              {/* Header with avatar + name */}
+              <div className="flex items-center gap-3 px-4 pb-3 sm:pt-4">
+                {selectedBuilding.avatar_url && (
+                  <Image
+                    src={selectedBuilding.avatar_url}
+                    alt={selectedBuilding.login}
+                    width={48}
+                    height={48}
+                    className="border-[2px] border-border flex-shrink-0"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {selectedBuilding.name && (
+                      <p className="truncate text-sm text-cream">{selectedBuilding.name}</p>
+                    )}
+                    {selectedBuilding.claimed && (
+                      <span
+                        className="flex-shrink-0 px-1.5 py-0.5 text-[7px] text-bg"
+                        style={{ backgroundColor: theme.accent }}
+                      >
+                        Claimed
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-[10px] text-muted">@{selectedBuilding.login}</p>
                 </div>
-              ))}
-            </div>
-
-            {/* Language */}
-            {selectedBuilding.primary_language && (
-              <div className="mx-4 mb-3 text-[10px] text-muted">
-                Language: <span className="text-cream">{selectedBuilding.primary_language}</span>
               </div>
-            )}
 
-            {/* Actions */}
-            <div className="flex gap-2 p-4 pt-0">
-              <Link
-                href={`/dev/${selectedBuilding.login}`}
-                className="btn-press flex-1 py-2 text-center text-[10px] text-bg"
-                style={{
-                  backgroundColor: theme.accent,
-                  boxShadow: `2px 2px 0 0 ${theme.shadow}`,
-                }}
-              >
-                View Profile
-              </Link>
-              <a
-                href={`https://github.com/${selectedBuilding.login}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
-              >
-                GitHub
-              </a>
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-px bg-border/30 mx-4 mb-3 border border-border/50">
+                {[
+                  { label: "Rank", value: `#${selectedBuilding.rank}` },
+                  { label: "Contribs", value: selectedBuilding.contributions.toLocaleString() },
+                  { label: "Repos", value: selectedBuilding.public_repos.toLocaleString() },
+                  { label: "Stars", value: selectedBuilding.total_stars.toLocaleString() },
+                  { label: "Kudos", value: (selectedBuilding.kudos_count ?? 0).toLocaleString() },
+                  { label: "Lang", value: selectedBuilding.primary_language ?? "—" },
+                ].map((s) => (
+                  <div key={s.label} className="bg-bg-card p-2 text-center">
+                    <div className="text-xs" style={{ color: theme.accent }}>{s.value}</div>
+                    <div className="text-[8px] text-muted mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Achievements with tier colors, sorted by tier */}
+              {selectedBuilding.achievements && selectedBuilding.achievements.length > 0 && (
+                <div className="mx-4 mb-3 flex flex-wrap gap-1">
+                  {[...selectedBuilding.achievements]
+                    .sort((a, b) => {
+                      const tierOrder = ["diamond", "gold", "silver", "bronze"];
+                      const ta = tierOrder.indexOf(ACHIEVEMENT_TIERS_MAP[a] ?? "bronze");
+                      const tb = tierOrder.indexOf(ACHIEVEMENT_TIERS_MAP[b] ?? "bronze");
+                      return ta - tb;
+                    })
+                    .slice(0, 6)
+                    .map((ach) => {
+                      const tier = ACHIEVEMENT_TIERS_MAP[ach];
+                      const color = tier ? TIER_COLORS_MAP[tier] : undefined;
+                      const emoji = tier ? TIER_EMOJI_MAP[tier] : "";
+                      return (
+                        <span
+                          key={ach}
+                          className="px-1.5 py-0.5 text-[8px] border normal-case"
+                          style={{
+                            borderColor: color ?? "rgba(255,255,255,0.15)",
+                            color: color ?? "#a0a0b0",
+                          }}
+                        >
+                          {emoji} {ACHIEVEMENT_NAMES_MAP[ach] ?? ach.replace(/_/g, " ")}
+                        </span>
+                      );
+                    })}
+                  {selectedBuilding.achievements.length > 6 && (
+                    <span className="px-1.5 py-0.5 text-[8px] text-dim">
+                      +{selectedBuilding.achievements.length - 6}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Kudos: give kudos (other's building, logged in) */}
+              {session && selectedBuilding.login.toLowerCase() !== authLogin && (
+                <div className="mx-4 mb-3">
+                  <button
+                    onClick={handleGiveKudos}
+                    disabled={kudosSending || kudosSent}
+                    className="btn-press px-3 py-1.5 text-[9px] text-bg disabled:opacity-50"
+                    style={{
+                      backgroundColor: kudosSent ? "#39d353" : theme.accent,
+                      boxShadow: `1px 1px 0 0 ${theme.shadow}`,
+                    }}
+                  >
+                    {kudosSending ? "..." : kudosSent ? "Kudos Sent!" : "\uD83D\uDC4F Give Kudos"}
+                  </button>
+                </div>
+              )}
+
+              {/* Own building: copy invite link */}
+              {selectedBuilding.login.toLowerCase() === authLogin && (
+                <div className="mx-4 mb-3">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `${window.location.origin}/?ref=${authLogin}`
+                      );
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="btn-press w-full border-[2px] border-border py-1.5 text-center text-[9px] text-cream transition-colors hover:border-border-light"
+                  >
+                    {copied ? "Copied!" : "\uD83D\uDCCB Copy Invite Link"}
+                  </button>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 p-4 pt-0 pb-5 sm:pb-4">
+                {selectedBuilding.login.toLowerCase() === authLogin ? (
+                  <>
+                    <Link
+                      href={`/shop/${selectedBuilding.login}?tab=loadout`}
+                      className="btn-press flex-1 py-2 text-center text-[10px] text-bg"
+                      style={{
+                        backgroundColor: theme.accent,
+                        boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+                      }}
+                    >
+                      Loadout
+                    </Link>
+                    <Link
+                      href={`/dev/${selectedBuilding.login}`}
+                      className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
+                    >
+                      Profile
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href={`/dev/${selectedBuilding.login}`}
+                      className="btn-press flex-1 py-2 text-center text-[10px] text-bg"
+                      style={{
+                        backgroundColor: theme.accent,
+                        boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+                      }}
+                    >
+                      View Profile
+                    </Link>
+                    <a
+                      href={`https://github.com/${selectedBuilding.login}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-press flex-1 border-[2px] border-border py-2 text-center text-[10px] text-cream transition-colors hover:border-border-light"
+                    >
+                      GitHub
+                    </a>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* ─── Share Modal ─── */}
@@ -1109,6 +1378,41 @@ function HomeContent() {
           </div>
         </div>
       )}
+
+      {/* ─── Activity Ticker ─── */}
+      {!flyMode && feedEvents.length >= 3 && (
+        <ActivityTicker
+          events={feedEvents}
+          onEventClick={(evt) => {
+            const login = evt.actor?.login;
+            if (login) {
+              setFocusedBuilding(login);
+              const found = buildings.find(b => b.login.toLowerCase() === login.toLowerCase());
+              if (found) {
+                setSelectedBuilding(found);
+                if (!exploreMode) setExploreMode(true);
+              }
+            }
+          }}
+          onOpenPanel={() => setFeedPanelOpen(true)}
+        />
+      )}
+
+      {/* ─── Activity Panel (slide-in) ─── */}
+      <ActivityPanel
+        initialEvents={feedEvents}
+        open={feedPanelOpen}
+        onClose={() => setFeedPanelOpen(false)}
+        onNavigate={(login) => {
+          setFeedPanelOpen(false);
+          setFocusedBuilding(login);
+          const found = buildings.find(b => b.login.toLowerCase() === login.toLowerCase());
+          if (found) {
+            setSelectedBuilding(found);
+            if (!exploreMode) setExploreMode(true);
+          }
+        }}
+      />
 
       {/* ─── Free Gift Celebration Modal ─── */}
       {giftClaimed && !flyMode && !exploreMode && (

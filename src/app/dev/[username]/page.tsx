@@ -6,6 +6,8 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { TopRepo } from "@/lib/github";
 import { getOwnedItems } from "@/lib/items";
+import { TIER_COLORS, TIER_EMOJI } from "@/lib/achievements";
+import { ITEM_NAMES } from "@/lib/zones";
 import ClaimButton from "@/components/ClaimButton";
 import ShareButtons from "@/components/ShareButtons";
 
@@ -50,19 +52,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const ITEM_NAMES: Record<string, string> = {
-  neon_outline: "Neon Outline",
-  particle_aura: "Particle Aura",
-  spotlight: "Spotlight",
-  rooftop_fire: "Rooftop Fire",
-  helipad: "Helipad",
-  antenna_array: "Antenna Array",
-  rooftop_garden: "Rooftop Garden",
-  spire: "Spire",
-  custom_color: "Custom Color",
-  billboard: "Billboard",
-  flag: "Flag",
-};
+interface AchievementRow {
+  achievement_id: string;
+  name: string;
+  tier: string;
+}
 
 export default async function DevPage({ params }: Props) {
   const { username } = await params;
@@ -73,6 +67,18 @@ export default async function DevPage({ params }: Props) {
   const accent = "#c8e64a";
   const topRepos: TopRepo[] = dev.top_repos ?? [];
   const ownedItems = await getOwnedItems(dev.id);
+
+  // Fetch achievements with name+tier from DB (no hardcoded maps)
+  const sb = getSupabaseAdmin();
+  const { data: devAchievements } = await sb
+    .from("developer_achievements")
+    .select("achievement_id, achievements(name, tier)")
+    .eq("developer_id", dev.id);
+  const achievements: AchievementRow[] = (devAchievements ?? []).map((a: Record<string, unknown>) => ({
+    achievement_id: a.achievement_id as string,
+    name: (a.achievements as Record<string, unknown>)?.name as string ?? (a.achievement_id as string),
+    tier: (a.achievements as Record<string, unknown>)?.tier as string ?? "bronze",
+  }));
 
   // Check if the logged-in user owns this building
   const supabase = await createServerSupabase();
@@ -165,11 +171,13 @@ export default async function DevPage({ params }: Props) {
         )}
 
         {/* Stats Grid */}
-        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           {[
             { label: "Contributions", value: dev.contributions.toLocaleString() },
             { label: "Repos", value: dev.public_repos.toLocaleString() },
             { label: "Stars", value: dev.total_stars.toLocaleString() },
+            { label: "Kudos", value: (dev.kudos_count ?? 0).toLocaleString() },
+            { label: "Referrals", value: (dev.referral_count ?? 0).toLocaleString() },
             { label: "Language", value: dev.primary_language ?? "—" },
           ].map((stat) => (
             <div
@@ -183,6 +191,35 @@ export default async function DevPage({ params }: Props) {
             </div>
           ))}
         </div>
+
+        {/* Achievements */}
+        {achievements.length > 0 && (
+          <div className="mt-5">
+            <h2 className="mb-3 text-sm text-cream">
+              Achievements
+              <span className="ml-2 text-[10px] text-muted">{achievements.length}</span>
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {achievements
+                .sort((a, b) => {
+                  const tierOrder = ["diamond", "gold", "silver", "bronze"];
+                  return tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier);
+                })
+                .map((ach) => {
+                  const color = TIER_COLORS[ach.tier] ?? accent;
+                  return (
+                    <span
+                      key={ach.achievement_id}
+                      className="border-[2px] px-3 py-1 text-[10px]"
+                      style={{ borderColor: color, color }}
+                    >
+                      {ach.name}
+                    </span>
+                  );
+                })}
+            </div>
+          </div>
+        )}
 
         {/* Owned Items */}
         {ownedItems.length > 0 && (

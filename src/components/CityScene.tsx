@@ -7,8 +7,8 @@ import Building3D from "./Building3D";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
 
-const LOD_DISTANCE = 650;
-const LOD_ALWAYS_DETAIL_HEIGHT = 150; // tall buildings always render full detail
+const LOD_DISTANCE = 500;        // beyond this: instanced mesh, no label
+                                  // within this: individual Building3D with username label
 const LOD_UPDATE_INTERVAL = 0.2; // seconds
 
 // Pre-allocated temp objects to avoid GC pressure in useFrame
@@ -18,12 +18,19 @@ const _quaternion = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
 const _color = new THREE.Color();
 
+export interface FocusInfo {
+  dist: number;
+  screenX: number;
+  screenY: number;
+}
+
 interface CitySceneProps {
   buildings: CityBuilding[];
   colors: BuildingColors;
   focusedBuilding?: string | null;
   accentColor?: string;
   onBuildingClick?: (building: CityBuilding) => void;
+  onFocusInfo?: (info: FocusInfo) => void;
 }
 
 export default function CityScene({
@@ -32,6 +39,7 @@ export default function CityScene({
   focusedBuilding,
   accentColor,
   onBuildingClick,
+  onFocusInfo,
 }: CitySceneProps) {
   const instancedRef = useRef<THREE.InstancedMesh>(null);
   const lastUpdate = useRef(-1); // -1 so first frame triggers immediately
@@ -83,7 +91,7 @@ export default function CityScene({
   }, [sharedGeo, farMaterial]);
 
   // Centralized LOD check — one useFrame for all buildings
-  useFrame(({ camera, clock }) => {
+  useFrame(({ camera, clock, size }) => {
     const elapsed = clock.elapsedTime;
     if (elapsed - lastUpdate.current < LOD_UPDATE_INTERVAL) return;
     lastUpdate.current = elapsed;
@@ -101,7 +109,16 @@ export default function CityScene({
         focusedBuilding != null &&
         focusedBuilding.toLowerCase() === b.login.toLowerCase();
 
-      if (dist < LOD_DISTANCE || isFocused || b.height >= LOD_ALWAYS_DETAIL_HEIGHT) {
+      if (isFocused && onFocusInfo) {
+        // Project building top to screen coordinates
+        _position.set(b.position[0], b.height * 0.65, b.position[2]);
+        _position.project(camera);
+        const screenX = (_position.x * 0.5 + 0.5) * size.width;
+        const screenY = (-_position.y * 0.5 + 0.5) * size.height;
+        onFocusInfo({ dist, screenX, screenY });
+      }
+
+      if (dist < LOD_DISTANCE || isFocused) {
         newNearSet.add(b.login);
       } else {
         far.push(b);
@@ -151,7 +168,7 @@ export default function CityScene({
         frustumCulled={false}
       />
 
-      {/* Near buildings: full detail with textures, labels, effects */}
+      {/* Near buildings: individual components with username label + effects */}
       {nearBuildings.map((b) => (
         <Building3D
           key={b.login}

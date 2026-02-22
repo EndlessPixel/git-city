@@ -65,17 +65,50 @@ export async function POST(request: Request) {
   }
 
   // Parse body
-  let body: { item_id: string; provider: "stripe" | "abacatepay" };
+  let body: { item_id: string; provider: "stripe" | "abacatepay"; gifted_to_login?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const { item_id, provider } = body;
+  const { item_id, provider, gifted_to_login } = body;
 
   if (!item_id || !provider || !["stripe", "abacatepay"].includes(provider)) {
     return NextResponse.json({ error: "Invalid item_id or provider" }, { status: 400 });
+  }
+
+  // Gift validation
+  let giftedToDevId: number | null = null;
+  if (gifted_to_login) {
+    if (gifted_to_login.toLowerCase() === githubLogin) {
+      return NextResponse.json({ error: "Cannot gift to yourself" }, { status: 400 });
+    }
+
+    const { data: receiver } = await sb
+      .from("developers")
+      .select("id, claimed")
+      .eq("github_login", gifted_to_login.toLowerCase())
+      .single();
+
+    if (!receiver || !receiver.claimed) {
+      return NextResponse.json({ error: "Receiver must have claimed building" }, { status: 400 });
+    }
+
+    // Check receiver doesn't already own this item
+    const { data: receiverOwns } = await sb
+      .from("purchases")
+      .select("id")
+      .eq("developer_id", receiver.id)
+      .eq("item_id", item_id)
+      .eq("status", "completed")
+      .maybeSingle();
+
+    if (receiverOwns) {
+      return NextResponse.json({ error: "Receiver already owns this item" }, { status: 409 });
+    }
+
+    giftedToDevId = receiver.id;
   }
 
   // Validate item exists and is active
@@ -168,6 +201,7 @@ export async function POST(request: Request) {
           amount_cents: item.price_usd_cents,
           currency: "usd",
           status: "pending",
+          ...(giftedToDevId ? { gifted_to: giftedToDevId } : {}),
         })
         .select("id")
         .single();
@@ -189,6 +223,7 @@ export async function POST(request: Request) {
           amount_cents: item.price_brl_cents,
           currency: "brl",
           status: "pending",
+          ...(giftedToDevId ? { gifted_to: giftedToDevId } : {}),
         })
         .select("id")
         .single();

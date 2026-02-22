@@ -10,6 +10,7 @@ export interface ShopItem {
   price_usd_cents: number;
   price_brl_cents: number;
   is_active: boolean;
+  zone: "crown" | "roof" | "aura" | "faces" | null;
   metadata: Record<string, unknown>;
   created_at: string;
 }
@@ -18,7 +19,7 @@ export interface PurchaseRecord {
   id: string;
   developer_id: number;
   item_id: string;
-  provider: "stripe" | "abacatepay" | "free";
+  provider: "stripe" | "abacatepay" | "free" | "achievement";
   provider_tx_id: string | null;
   amount_cents: number;
   currency: "usd" | "brl";

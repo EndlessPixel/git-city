@@ -63,5 +63,20 @@ export async function POST() {
     );
   }
 
+  // Insert feed event
+  const { data: dev } = await admin
+    .from("developers")
+    .select("id")
+    .eq("github_login", githubLogin)
+    .single();
+
+  if (dev) {
+    await admin.from("activity_feed").insert({
+      event_type: "building_claimed",
+      actor_id: dev.id,
+      metadata: { login: githubLogin },
+    });
+  }
+
   return NextResponse.json({ claimed: true, github_login: data.github_login });
 }

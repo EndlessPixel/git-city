@@ -15,6 +15,13 @@ import {
   Spire,
   Billboards,
   Flag,
+  NeonTrim,
+  SatelliteDish,
+  CrownItem,
+  PoolParty,
+  HologramRing,
+  LightningAura,
+  LEDBanner,
 } from "./BuildingEffects";
 import type { BuildingDims } from "./ShopClient";
 
@@ -94,6 +101,20 @@ function EffectForItem({
       return <Billboards {...dims} images={billboardImages ?? []} />;
     case "flag":
       return <Flag height={dims.height} />;
+    case "neon_trim":
+      return <NeonTrim {...dims} color={ACCENT} />;
+    case "satellite_dish":
+      return <SatelliteDish {...dims} color={ACCENT} />;
+    case "crown_item":
+      return <CrownItem height={dims.height} color={ACCENT} />;
+    case "pool_party":
+      return <PoolParty {...dims} />;
+    case "hologram_ring":
+      return <HologramRing {...dims} color={ACCENT} />;
+    case "lightning_aura":
+      return <LightningAura {...dims} color={ACCENT} />;
+    case "led_banner":
+      return <LEDBanner {...dims} color={ACCENT} />;
     default:
       return null;
   }

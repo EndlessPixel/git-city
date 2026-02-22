@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
+import { ZONE_ITEMS } from "@/lib/zones";
 import {
   NeonOutline,
   ParticleAura,
@@ -16,6 +17,13 @@ import {
   Spire,
   Billboards,
   Flag,
+  NeonTrim,
+  SatelliteDish,
+  CrownItem,
+  PoolParty,
+  HologramRing,
+  LightningAura,
+  LEDBanner,
 } from "./BuildingEffects";
 
 // Shared constants
@@ -130,74 +138,48 @@ function ClaimedGlow({ height, width, depth }: { height: number; width: number; 
   );
 }
 
-// ─── Label as CanvasTexture Sprite (no DOM, no useFrame) ─────
+// ─── Multi-Level Labels ──────────────────────────────────────
 
-function createLabelTexture(building: CityBuilding): THREE.CanvasTexture {
+/** Level 1: Far — just @USERNAME (512x80, semi-transparent bg for readability) */
+function createFarLabel(building: CityBuilding): THREE.CanvasTexture {
   const W = 512;
-  const H = 128;
+  const H = 80;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
 
-  // Background
-  ctx.fillStyle = "rgba(10, 10, 14, 0.88)";
+  const login = building.login.length > 16
+    ? building.login.slice(0, 16).toUpperCase() + "..."
+    : building.login.toUpperCase();
+  const text = `@${login}`;
+
+  ctx.font = 'bold 40px "Silkscreen", monospace';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // Semi-transparent background pill for contrast
+  const textWidth = ctx.measureText(text).width;
+  const padX = 20;
+  const padY = 8;
+  const bgW = textWidth + padX * 2;
+  const bgH = 48 + padY * 2;
+  const bgX = (W - bgW) / 2;
+  const bgY = (H - bgH) / 2;
+  ctx.fillStyle = "rgba(10, 10, 14, 0.65)";
   ctx.beginPath();
-  ctx.roundRect(4, 4, W - 8, H - 8, 6);
+  ctx.roundRect(bgX, bgY, bgW, bgH, 6);
   ctx.fill();
 
-  // Border
-  ctx.strokeStyle = building.claimed ? "rgba(200, 230, 74, 0.6)" : "rgba(100, 100, 120, 0.5)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(4, 4, W - 8, H - 8, 6);
-  ctx.stroke();
-
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-
-  // Username
-  ctx.font = 'bold 26px "Silkscreen", monospace';
-  ctx.fillStyle = "#e8dcc8";
-  ctx.shadowColor = "rgba(200, 230, 74, 0.4)";
-  ctx.shadowBlur = 8;
-  ctx.fillText(`@${building.login.toUpperCase()}`, W / 2, 11);
-
-  // Reset shadow
-  ctx.shadowColor = "rgba(0,0,0,0.8)";
-  ctx.shadowBlur = 2;
-
-  // Rank + contributions
-  ctx.font = '18px "Silkscreen", monospace';
-  ctx.fillStyle = "#a0a0b0";
-  ctx.fillText(
-    `#${building.rank} · ${building.contributions.toLocaleString()} CONTRIBUTIONS`,
-    W / 2,
-    45
-  );
-
-  // Repos + stars + claimed badge
-  let repoLine = `${building.public_repos} REPOS`;
-  if (building.total_stars > 0) repoLine += ` · ${building.total_stars} ★`;
-  ctx.fillText(repoLine, W / 2, 72);
-
-  // Claimed badge
   if (building.claimed) {
-    const badgeText = "CLAIMED";
-    ctx.font = 'bold 14px "Silkscreen", monospace';
-    const metrics = ctx.measureText(badgeText);
-    const bw = metrics.width + 10;
-    const bh = 17;
-    const bx = W / 2 - bw / 2;
-    const by = 98;
-    ctx.fillStyle = "#c8e64a";
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 2);
-    ctx.fill();
-    ctx.fillStyle = "#0d0d0f";
-    ctx.textBaseline = "top";
-    ctx.fillText(badgeText, W / 2, by + 2);
+    ctx.fillStyle = "#e8dcc8";
+    ctx.shadowColor = "rgba(200, 230, 74, 0.5)";
+    ctx.shadowBlur = 8;
+  } else {
+    ctx.fillStyle = "rgba(140, 140, 160, 0.6)";
   }
+
+  ctx.fillText(text, W / 2, H / 2);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.minFilter = THREE.LinearFilter;
@@ -205,6 +187,7 @@ function createLabelTexture(building: CityBuilding): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
 
 // ─── Building Animation (separate component, unmounts when done) ─
 
@@ -305,6 +288,110 @@ function FocusBeacon({ height, width, depth, accentColor }: { height: number; wi
 
 // ─── Main Building Component ─────────────────────────────────
 
+// ─── Loadout-Aware Effect Rendering ──────────────────────────
+
+function BuildingItemEffects({ building, accentColor }: { building: CityBuilding; accentColor: string }) {
+  const { height, width, depth, owned_items, loadout, billboard_images } = building;
+  const items = owned_items ?? [];
+
+  // Zone definitions (from shared constants)
+  const crownItems = ZONE_ITEMS.crown;
+  const roofItems = ZONE_ITEMS.roof;
+  const auraItems = ZONE_ITEMS.aura;
+
+  // Without a loadout, only render flag (free claim item). All other items require explicit equip.
+  const hasLoadout = loadout && (loadout.crown || loadout.roof || loadout.aura);
+  const crownItem = hasLoadout ? loadout.crown : (items.includes("flag") ? "flag" : null);
+  const roofItem = hasLoadout ? loadout.roof : null;
+  const auraItem = hasLoadout ? loadout.aura : null;
+
+  const shouldRender = (itemId: string) => {
+    if (!items.includes(itemId)) return false;
+    return true; // Faces zone items always render if owned
+  };
+
+  const shouldRenderZone = (itemId: string) => {
+    if (!items.includes(itemId)) return false;
+    if (crownItems.includes(itemId)) return crownItem === itemId;
+    if (roofItems.includes(itemId)) return roofItem === itemId;
+    if (auraItems.includes(itemId)) return auraItem === itemId;
+    return true;
+  };
+
+  return (
+    <>
+      {/* Legacy items (keep rendering for existing owners) */}
+      {shouldRenderZone("neon_outline") && (
+        <NeonOutline width={width} height={height} depth={depth} color={accentColor} />
+      )}
+      {shouldRenderZone("particle_aura") && (
+        <ParticleAura width={width} height={height} depth={depth} color={accentColor} />
+      )}
+
+      {/* Aura zone */}
+      {shouldRenderZone("spotlight") && (
+        <SpotlightEffect height={height} width={width} depth={depth} color={accentColor} />
+      )}
+
+      {/* Roof zone */}
+      {shouldRenderZone("rooftop_fire") && (
+        <RooftopFire height={height} width={width} depth={depth} />
+      )}
+      {shouldRenderZone("antenna_array") && (
+        <AntennaArray height={height} />
+      )}
+      {shouldRenderZone("rooftop_garden") && (
+        <RooftopGarden height={height} width={width} depth={depth} />
+      )}
+
+      {/* Crown zone */}
+      {shouldRenderZone("helipad") && (
+        <Helipad height={height} width={width} depth={depth} />
+      )}
+      {shouldRenderZone("spire") && (
+        <Spire height={height} width={width} depth={depth} />
+      )}
+      {shouldRenderZone("flag") && (
+        <Flag height={height} color={accentColor} />
+      )}
+
+      {/* New aura zone items */}
+      {shouldRenderZone("neon_trim") && (
+        <NeonTrim width={width} height={height} depth={depth} color={accentColor} />
+      )}
+      {shouldRenderZone("hologram_ring") && (
+        <HologramRing width={width} height={height} depth={depth} color={accentColor} />
+      )}
+      {shouldRenderZone("lightning_aura") && (
+        <LightningAura width={width} height={height} depth={depth} color={accentColor} />
+      )}
+
+      {/* New crown zone items */}
+      {shouldRenderZone("satellite_dish") && (
+        <SatelliteDish height={height} width={width} depth={depth} color={accentColor} />
+      )}
+      {shouldRenderZone("crown_item") && (
+        <CrownItem height={height} color={accentColor} />
+      )}
+
+      {/* New roof zone items */}
+      {shouldRenderZone("pool_party") && (
+        <PoolParty height={height} width={width} depth={depth} />
+      )}
+
+      {/* Faces zone (always render if owned) */}
+      {shouldRender("billboard") && (
+        <Billboards height={height} width={width} depth={depth} images={billboard_images ?? []} color={accentColor} />
+      )}
+      {shouldRender("led_banner") && (
+        <LEDBanner height={height} width={width} depth={depth} color={accentColor} />
+      )}
+    </>
+  );
+}
+
+// ─── Main Building Component ─────────────────────────────────
+
 interface Props {
   building: CityBuilding;
   colors: BuildingColors;
@@ -380,7 +467,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
   }, [textures, colors.roof]);
 
   const labelTexture = useMemo(
-    () => createLabelTexture(building),
+    () => createFarLabel(building),
     [building]
   );
 
@@ -415,12 +502,12 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
       mat.opacity = dimmed ? 0.55 : 1;
       mat.emissiveIntensity = dimmed ? 0.3 : (mat.map ? 2.0 : 1.5);
     }
-    labelMaterial.opacity = dimmed ? 0.15 : 1;
+    labelMaterial.opacity = focused ? 0 : dimmed ? 0.15 : 1;
     // Reset group visibility when un-dimming
     if (!dimmed && groupRef.current) {
       groupRef.current.visible = true;
     }
-  }, [dimmed, materials, labelMaterial]);
+  }, [focused, dimmed, materials, labelMaterial]);
 
   return (
     <group ref={groupRef} position={[building.position[0], 0, building.position[2]]}>
@@ -442,7 +529,7 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
         ref={spriteRef}
         material={labelMaterial}
         position={[0, building.height + 20, 0]}
-        scale={[28, 7, 1]}
+        scale={[32, 5, 1]}
       />
 
       <BuildingRiseAnimation
@@ -455,37 +542,8 @@ export default function Building3D({ building, colors, focused, dimmed, accentCo
 
       {focused && <FocusBeacon height={building.height} width={building.width} depth={building.depth} accentColor={accentColor ?? "#c8e64a"} />}
 
-      {/* Purchased effects */}
-      {building.owned_items?.includes("neon_outline") && (
-        <NeonOutline width={building.width} height={building.height} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("particle_aura") && (
-        <ParticleAura width={building.width} height={building.height} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("spotlight") && (
-        <SpotlightEffect height={building.height} width={building.width} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("rooftop_fire") && (
-        <RooftopFire height={building.height} width={building.width} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("helipad") && (
-        <Helipad height={building.height} width={building.width} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("antenna_array") && (
-        <AntennaArray height={building.height} />
-      )}
-      {building.owned_items?.includes("rooftop_garden") && (
-        <RooftopGarden height={building.height} width={building.width} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("spire") && (
-        <Spire height={building.height} width={building.width} depth={building.depth} />
-      )}
-      {building.owned_items?.includes("billboard") && (
-        <Billboards height={building.height} width={building.width} depth={building.depth} images={building.billboard_images ?? []} />
-      )}
-      {building.owned_items?.includes("flag") && (
-        <Flag height={building.height} />
-      )}
+      {/* Loadout-aware effect rendering */}
+      <BuildingItemEffects building={building} accentColor={accentColor ?? colors.accent ?? "#c8e64a"} />
     </group>
   );
 }

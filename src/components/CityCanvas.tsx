@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import CityScene from "./CityScene";
+import type { FocusInfo } from "./CityScene";
 import type { CityBuilding, CityPlaza, CityDecoration } from "@/lib/github";
 import { seededRandom } from "@/lib/github";
 
@@ -14,9 +15,7 @@ export const THEME_NAMES = [
   "Sunset",
   "Midnight",
   "Neon",
-  "Dawn",
   "Emerald",
-  "Vapor",
 ] as const;
 
 export interface BuildingColors {
@@ -24,6 +23,7 @@ export interface BuildingColors {
   windowOff: string;
   face: string;
   roof: string;
+  accent: string;
 }
 
 interface CityTheme {
@@ -65,6 +65,7 @@ const THEMES: CityTheme[] = [
     building: {
       windowLit: ["#f8d880", "#f0b860", "#e89840", "#d07830", "#f0c060"],
       windowOff: "#1a1018", face: "#281828", roof: "#604050",
+      accent: "#c8e64a",
     },
   },
   // 1 – Midnight
@@ -82,6 +83,7 @@ const THEMES: CityTheme[] = [
     building: {
       windowLit: ["#a0c0f0", "#80a0e0", "#6080c8", "#c0d8f8", "#e0e8ff"],
       windowOff: "#0c0e18", face: "#101828", roof: "#2a3858",
+      accent: "#6090e0",
     },
   },
   // 2 – Neon
@@ -100,27 +102,10 @@ const THEMES: CityTheme[] = [
     building: {
       windowLit: ["#ff40c0", "#c040ff", "#00e0ff", "#40ff80", "#ff8040"],
       windowOff: "#0a0814", face: "#180830", roof: "#3c1858",
+      accent: "#e040c0",
     },
   },
-  // 3 – Dawn
-  {
-    sky: [
-      [0, "#141430"], [0.15, "#1c1848"], [0.28, "#342860"], [0.38, "#604870"],
-      [0.46, "#a07080"], [0.52, "#d09080"], [0.57, "#e8b0a0"], [0.62, "#f0c8b8"],
-      [0.68, "#f0d8cc"], [0.75, "#c0a090"], [0.85, "#605048"], [1, "#181414"],
-    ],
-    fogColor: "#906870", fogNear: 200, fogFar: 1800,
-    ambientColor: "#e0b0a0", ambientIntensity: 0.45,
-    sunColor: "#f0c0a0", sunIntensity: 0.5, sunPos: [400, 60, -300],
-    fillColor: "#8070b0", fillIntensity: 0.12, fillPos: [-200, 80, 200],
-    hemiSky: "#a08090", hemiGround: "#141014", hemiIntensity: 0.25,
-    groundColor: "#141014", grid1: "#281c24", grid2: "#1c1418",
-    building: {
-      windowLit: ["#f8e0c0", "#f0c8a0", "#e8b090", "#f0a880", "#ffd8b8"],
-      windowOff: "#141018", face: "#201820", roof: "#503848",
-    },
-  },
-  // 4 – Emerald
+  // 3 – Emerald
   {
     sky: [
       [0, "#000804"], [0.15, "#001408"], [0.30, "#002810"], [0.42, "#003c1c"],
@@ -136,24 +121,7 @@ const THEMES: CityTheme[] = [
     building: {
       windowLit: ["#0e4429", "#006d32", "#26a641", "#39d353", "#c8e64a"],
       windowOff: "#060e08", face: "#0c1810", roof: "#1e4028",
-    },
-  },
-  // 5 – Vapor
-  {
-    sky: [
-      [0, "#0a0018"], [0.15, "#180030"], [0.25, "#300450"], [0.35, "#480660"],
-      [0.45, "#801870"], [0.55, "#a03080"], [0.62, "#c05088"], [0.70, "#408888"],
-      [0.80, "#206060"], [0.90, "#103030"], [1, "#081418"],
-    ],
-    fogColor: "#301838", fogNear: 180, fogFar: 1700,
-    ambientColor: "#a060a0", ambientIntensity: 0.3,
-    sunColor: "#e06890", sunIntensity: 0.45, sunPos: [350, 60, -250],
-    fillColor: "#40b0b0", fillIntensity: 0.15, fillPos: [-250, 80, 200],
-    hemiSky: "#804080", hemiGround: "#081010", hemiIntensity: 0.2,
-    groundColor: "#080c10", grid1: "#201430", grid2: "#140c1c",
-    building: {
-      windowLit: ["#ff60a0", "#e040c0", "#40e0d0", "#80f0c0", "#c060e0"],
-      windowOff: "#0c0a14", face: "#181028", roof: "#3c2850",
+      accent: "#f0c060",
     },
   },
 ];
@@ -964,11 +932,12 @@ interface Props {
   accentColor?: string;
   onClearFocus?: () => void;
   onBuildingClick?: (building: CityBuilding) => void;
+  onFocusInfo?: (info: FocusInfo) => void;
   flyPauseSignal?: number;
   flyHasOverlay?: boolean;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, accentColor, onClearFocus, onBuildingClick, flyPauseSignal, flyHasOverlay }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay }: Props) {
   const t = THEMES[themeIndex] ?? THEMES[0];
 
   return (
@@ -998,8 +967,9 @@ export default function CityCanvas({ buildings, plazas, decorations, flyMode, on
         buildings={buildings}
         colors={t.building}
         focusedBuilding={focusedBuilding}
-        accentColor={accentColor}
+        accentColor={t.building.accent}
         onBuildingClick={onBuildingClick}
+        onFocusInfo={onFocusInfo}
       />
 
       <InstancedDecorations items={decorations} />

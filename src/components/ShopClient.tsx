@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import type { ShopItem } from "@/lib/items";
+import LoadoutPanel from "./LoadoutPanel";
 
 /** Must match FREE_CLAIM_ITEM in lib/items.ts */
 const FREE_CLAIM_ITEM = "flag";
@@ -16,6 +17,12 @@ export interface BuildingDims {
   depth: number;
 }
 
+interface Loadout {
+  crown: string | null;
+  roof: string | null;
+  aura: string | null;
+}
+
 interface Props {
   githubLogin: string;
   developerId: number;
@@ -25,7 +32,11 @@ interface Props {
   initialBillboardImages: string[];
   billboardSlots: number;
   buildingDims: BuildingDims;
+  achievements?: string[];
+  initialLoadout?: Loadout | null;
 }
+
+import { ACHIEVEMENT_ITEMS } from "@/lib/zones";
 
 interface PixModalData {
   brCode: string;
@@ -543,7 +554,10 @@ export default function ShopClient({
   initialBillboardImages,
   billboardSlots: initialBillboardSlots,
   buildingDims,
+  achievements = [],
+  initialLoadout = null,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<"shop" | "loadout">("shop");
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [owned, setOwned] = useState<string[]>(ownedItems);
@@ -731,6 +745,31 @@ export default function ShopClient({
         />
       )}
 
+      {/* Tab Switcher */}
+      <div className="mb-4 flex gap-2">
+        {(["shop", "loadout"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="px-4 py-2 text-xs border-[3px] transition-colors"
+            style={{
+              borderColor: activeTab === tab ? ACCENT : "var(--color-border)",
+              color: activeTab === tab ? ACCENT : "var(--color-muted)",
+              backgroundColor: activeTab === tab ? "rgba(200, 230, 74, 0.1)" : "transparent",
+            }}
+          >
+            {tab === "shop" ? "Shop" : "Loadout"}
+          </button>
+        ))}
+      </div>
+
+      {/* Loadout Tab */}
+      {activeTab === "loadout" && (
+        <LoadoutPanel ownedItems={owned} initialLoadout={initialLoadout} />
+      )}
+
+      {/* Shop Tab */}
+      {activeTab === "shop" && (
       <div className="lg:flex lg:gap-6">
         {/* Left column: items card */}
         <div className="min-w-0 flex-1">
@@ -766,6 +805,9 @@ export default function ShopClient({
                       const isFreeItem = item.id === FREE_CLAIM_ITEM;
                       // Billboard can be bought multiple times
                       const showBuyButton = isBillboard || !isOwned;
+                      const achUnlock = ACHIEVEMENT_ITEMS[item.id];
+                      const isAchUnlockable = achUnlock && !isOwned;
+                      const hasAchievement = achUnlock && achievements.includes(achUnlock.achievement);
 
                       return (
                         <div key={item.id}>
@@ -802,6 +844,11 @@ export default function ShopClient({
                               {item.description && (
                                 <p className="mt-0.5 text-xs text-muted normal-case">
                                   {item.description}
+                                </p>
+                              )}
+                              {isAchUnlockable && (
+                                <p className="mt-1 text-[9px] normal-case" style={{ color: hasAchievement ? "#39d353" : "#a0a0b0" }}>
+                                  {hasAchievement ? "Unlockable free via achievement!" : `Unlock: ${achUnlock.label}`}
                                 </p>
                               )}
                             </div>
@@ -897,6 +944,7 @@ export default function ShopClient({
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

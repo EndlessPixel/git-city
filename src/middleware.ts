@@ -9,6 +9,12 @@ const ROUTE_LIMITS: [string, number, number][] = [
   // Exact-prefix match – order from most-specific to least-specific
   ["/api/customizations/upload", 5, 60_000],
   ["/api/customizations", 10, 60_000],
+  ["/api/interactions/kudos", 20, 60_000],
+  ["/api/interactions/visit", 50, 60_000],
+  ["/api/interactions", 60, 60_000],
+  ["/api/achievements", 30, 60_000],
+  ["/api/loadout", 10, 60_000],
+  ["/api/feed", 30, 60_000],
   ["/api/checkout", 6, 60_000],
   ["/api/claim", 5, 60_000],
   ["/api/city", 30, 60_000],

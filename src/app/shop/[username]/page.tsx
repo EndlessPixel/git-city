@@ -103,7 +103,7 @@ export default async function ShopPage({ params }: Props) {
 
   const sb = getSupabaseAdmin();
 
-  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult] = await Promise.all([
+  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult, achievementsResult, loadoutResult] = await Promise.all([
     getActiveItems(),
     getOwnedItems(dev.id),
     sb
@@ -123,7 +123,20 @@ export default async function ShopPage({ params }: Props) {
       .order("rank", { ascending: true })
       .limit(1)
       .single(),
+    sb
+      .from("developer_achievements")
+      .select("achievement_id")
+      .eq("developer_id", dev.id),
+    sb
+      .from("developer_customizations")
+      .select("config")
+      .eq("developer_id", dev.id)
+      .eq("item_id", "loadout")
+      .maybeSingle(),
   ]);
+
+  const achievements = (achievementsResult.data ?? []).map((a: { achievement_id: string }) => a.achievement_id);
+  const initialLoadout = (loadoutResult.data?.config as { crown: string | null; roof: string | null; aura: string | null } | null) ?? null;
 
   const billboardSlots = billboardPurchasesResult.count ?? 0;
   const maxContrib = topDevResult.data?.contributions ?? dev.contributions;
@@ -195,6 +208,8 @@ export default async function ShopPage({ params }: Props) {
           initialBillboardImages={initialBillboardImages}
           billboardSlots={billboardSlots}
           buildingDims={buildingDims}
+          achievements={achievements}
+          initialLoadout={initialLoadout}
         />
 
         {/* Back links */}

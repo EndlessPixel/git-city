@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     sb
       .from("developers")
       .select(
-        "id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, claimed"
+        "id, github_login, name, avatar_url, contributions, total_stars, public_repos, primary_language, rank, claimed, kudos_count"
       )
       .order("rank", { ascending: true })
       .range(from, to - 1),
@@ -36,8 +36,8 @@ export async function GET(request: Request) {
     );
   }
 
-  // Round 2: purchases + customizations in parallel (2 queries instead of 3)
-  const [purchasesResult, customizationsResult] = await Promise.all([
+  // Round 2: purchases + customizations + achievements in parallel
+  const [purchasesResult, customizationsResult, achievementsResult] = await Promise.all([
     sb
       .from("purchases")
       .select("developer_id, item_id")
@@ -47,7 +47,11 @@ export async function GET(request: Request) {
       .from("developer_customizations")
       .select("developer_id, item_id, config")
       .in("developer_id", devIds)
-      .in("item_id", ["custom_color", "billboard"]),
+      .in("item_id", ["custom_color", "billboard", "loadout"]),
+    sb
+      .from("developer_achievements")
+      .select("developer_id, achievement_id")
+      .in("developer_id", devIds),
   ]);
 
   // Build owned items map
@@ -60,6 +64,7 @@ export async function GET(request: Request) {
   // Build customization maps
   const customColorMap: Record<number, string> = {};
   const billboardImagesMap: Record<number, string[]> = {};
+  const loadoutMap: Record<number, { crown: string | null; roof: string | null; aura: string | null }> = {};
   for (const row of customizationsResult.data ?? []) {
     const config = row.config as Record<string, unknown>;
     if (row.item_id === "custom_color" && typeof config?.color === "string") {
@@ -72,14 +77,31 @@ export async function GET(request: Request) {
         billboardImagesMap[row.developer_id] = [config.image_url];
       }
     }
+    if (row.item_id === "loadout") {
+      loadoutMap[row.developer_id] = {
+        crown: (config?.crown as string) ?? null,
+        roof: (config?.roof as string) ?? null,
+        aura: (config?.aura as string) ?? null,
+      };
+    }
+  }
+
+  // Build achievements map
+  const achievementsMap: Record<number, string[]> = {};
+  for (const row of achievementsResult.data ?? []) {
+    if (!achievementsMap[row.developer_id]) achievementsMap[row.developer_id] = [];
+    achievementsMap[row.developer_id].push(row.achievement_id);
   }
 
   // Merge everything
   const developersWithItems = devs.map((dev) => ({
     ...dev,
+    kudos_count: dev.kudos_count ?? 0,
     owned_items: ownedItemsMap[dev.id] ?? [],
     custom_color: customColorMap[dev.id] ?? null,
     billboard_images: billboardImagesMap[dev.id] ?? [],
+    achievements: achievementsMap[dev.id] ?? [],
+    loadout: loadoutMap[dev.id] ?? null,
   }));
 
   return NextResponse.json(
