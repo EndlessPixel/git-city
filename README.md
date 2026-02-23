@@ -12,9 +12,9 @@
   <a href="https://thegitcity.com">thegitcity.com</a>
 </p>
 
-<!-- TODO: Replace with a GIF/video recording of the city flythrough -->
-<!-- Recommended: 800x450, ~15s, showing flight + building interaction -->
-<!-- ![Git City Demo](assets/demo.gif) -->
+<p align="center">
+  <img src="public/og-image.png" alt="Git City — Where Code Builds Cities" width="800" />
+</p>
 
 ---
 
