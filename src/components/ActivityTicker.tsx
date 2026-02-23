@@ -80,24 +80,6 @@ export default function ActivityTicker({ events, onEventClick, onOpenPanel }: Pr
             {item.text}
           </span>
         ))}
-        <a
-          href="https://github.com/srizzon/git-city"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-6 text-[10px] text-muted hover:text-cream transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          &#11088; Star Git City on GitHub
-        </a>
-        <a
-          href="https://github.com/sponsors/srizzon"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mx-6 text-[10px] text-muted hover:text-cream transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          &#x1F49C; Sponsor this project
-        </a>
       </div>
 
       <style jsx>{`

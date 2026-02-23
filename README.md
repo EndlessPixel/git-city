@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="public/favicon.ico" alt="Git City" width="64" height="64" />
-</p>
-
 <h1 align="center">Git City</h1>
 
 <p align="center">

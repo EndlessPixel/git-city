@@ -171,42 +171,14 @@ export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
 
   const currentTrack = TRACKS[trackIndex];
 
-  // Collapsed — clear play/pause button
-  if (!expanded) {
-    return (
-      <button
-        onClick={togglePlay}
-        onContextMenu={(e) => { e.preventDefault(); setExpanded(true); }}
-        className={`btn-press fixed ${flyMode ? "bottom-[84px]" : "bottom-[96px]"} left-3 z-[25] flex h-[44px] items-center gap-2 border-[3px] border-border bg-bg-raised/95 px-3 backdrop-blur-sm transition-all`}
-        style={{ boxShadow: `3px 3px 0 0 ${shadow}`, borderColor: playing ? accent + "60" : undefined } as React.CSSProperties}
-        title={playing ? "Pause music" : "Play music"}
-      >
-        {/* Play/pause icon — universally understood */}
-        <span className="text-[12px]" style={{ color: playing ? accent : "var(--color-muted)" }}>
-          {playing ? "\u23F8" : "\u25B6"}
-        </span>
-        {/* Label */}
-        <span className="text-[9px] text-cream max-w-[90px] truncate">
-          {playing ? currentTrack?.title : "Lo-fi"}
-        </span>
-        {/* Expand hint */}
-        <span
-          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
-          className="text-[9px] text-muted hover:text-cream ml-0.5"
-          title="More controls"
-        >
-          {"\u2026"}
-        </span>
-      </button>
-    );
-  }
-
-  // Expanded — full controls, all obvious
   return (
-    <div
-      className={`fixed ${flyMode ? "bottom-[84px]" : "bottom-[96px]"} left-3 z-[25] border-[3px] border-border bg-bg-raised/95 backdrop-blur-sm`}
-      style={{ animation: "fade-in 0.15s ease-out", boxShadow: `3px 3px 0 0 ${shadow}`, width: 200 }}
-    >
+    <div className="relative">
+      {/* Expanded panel — pops up above the button */}
+      {expanded && (
+        <div
+          className="absolute bottom-full left-0 mb-2 z-[25] border-[3px] border-border bg-bg-raised/95 backdrop-blur-sm"
+          style={{ animation: "fade-in 0.15s ease-out", boxShadow: `3px 3px 0 0 ${shadow}`, width: 200 }}
+        >
       {/* Track name + close */}
       <div className="flex items-center justify-between gap-2 px-2.5 pt-2 pb-1">
         <span className="truncate text-[10px] text-cream">{currentTrack?.title ?? "No track"}</span>
@@ -261,6 +233,31 @@ export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
           {"\uD83D\uDD00"}
         </button>
       </div>
+        </div>
+      )}
+
+      {/* Collapsed button */}
+      <button
+        onClick={togglePlay}
+        onContextMenu={(e) => { e.preventDefault(); setExpanded(true); }}
+        className="btn-press flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-all hover:border-border-light"
+        style={{ borderColor: playing ? accent + "60" : undefined } as React.CSSProperties}
+        title={playing ? "Pause music" : "Play music"}
+      >
+        <span style={{ color: playing ? accent : "var(--color-muted)" }}>
+          {playing ? "\u23F8" : "\u25B6"}
+        </span>
+        <span className="text-cream max-w-[80px] truncate">
+          {playing ? currentTrack?.title : "Lo-fi"}
+        </span>
+        <span
+          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+          className="text-muted hover:text-cream ml-0.5"
+          title="More controls"
+        >
+          {"\u2026"}
+        </span>
+      </button>
     </div>
   );
 }

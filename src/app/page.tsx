@@ -1033,9 +1033,9 @@ function HomeContent() {
             </button>
           </div>
 
-          {/* Feed toggle (top-right) */}
+          {/* Feed toggle (top-right, below GitHub badges on desktop) */}
           {feedEvents.length >= 1 && (
-            <div className="pointer-events-auto absolute top-3 right-3 sm:top-4 sm:right-4">
+            <div className="pointer-events-auto absolute top-3 right-3 sm:top-14 sm:right-4">
               <button
                 onClick={() => setFeedPanelOpen(true)}
                 className="flex items-center gap-2 border-[3px] border-border bg-bg/70 px-3 py-1.5 text-[10px] backdrop-blur-sm transition-colors"
@@ -1063,6 +1063,30 @@ function HomeContent() {
 
       {/* Shop & Auth moved to center buttons area */}
 
+      {/* ─── GitHub Badge (mobile: top-center, desktop: top-right) ─── */}
+      {!flyMode && (
+        <div className="pointer-events-auto fixed top-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 sm:left-auto sm:right-4 sm:top-4 sm:translate-x-0">
+          <a
+            href="https://github.com/srizzon/git-city"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
+          >
+            <span style={{ color: theme.accent }}>&#9733;</span>
+            <span className="text-cream">Star</span>
+          </a>
+          <a
+            href="https://github.com/sponsors/srizzon"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
+          >
+            <span style={{ color: theme.accent }}>&#9829;</span>
+            <span className="text-cream">Sponsor</span>
+          </a>
+        </div>
+      )}
+
       {/* ─── Main UI Overlay ─── */}
       {!flyMode && !exploreMode && (
         <div
@@ -1079,8 +1103,22 @@ function HomeContent() {
                 Git{" "}
                 <span style={{ color: theme.accent }}>City</span>
               </h1>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted normal-case">
-                A global city of GitHub developers. Find yourself.
+              <p className="mt-2 text-[10px] leading-relaxed text-cream/80 normal-case">
+                {stats.total_developers > 0
+                  ? `A city of ${stats.total_developers.toLocaleString()} GitHub developers. Find yourself.`
+                  : "A global city of GitHub developers. Find yourself."}
+              </p>
+              <p className="pointer-events-auto mt-1 text-[9px] text-cream/50 normal-case">
+                built by{" "}
+                <a
+                  href="https://x.com/samuelrizzondev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition-colors hover:text-cream"
+                  style={{ color: theme.accent }}
+                >
+                  @samuelrizzondev
+                </a>
               </p>
             </div>
 
@@ -1230,58 +1268,8 @@ function HomeContent() {
             </div>
           )}
 
-          {/* Bottom */}
-          <div className="pointer-events-auto flex w-full flex-col items-center gap-3 sm:flex-row sm:items-end sm:justify-between">
-            {/* Theme switcher */}
-            <button
-              onClick={() => setThemeIndex((i) => (i + 1) % THEMES.length)}
-              className="group flex items-center gap-2 border-[3px] border-border bg-bg-raised px-3 py-1.5 text-[10px] transition-colors"
-              style={{ borderColor: undefined }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.borderColor = theme.accent + "80")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.borderColor = "")
-              }
-            >
-              <span style={{ color: theme.accent }}>&#9654;</span>
-              <span className="text-cream">{theme.name}</span>
-              <span className="text-dim">
-                {themeIndex + 1}/{THEMES.length}
-              </span>
-            </button>
-
-            {/* Info */}
-            <div className="text-center">
-              {stats.total_developers > 0 ? (
-                <p className="text-[10px] text-dim">
-                  {stats.total_developers} developer{stats.total_developers !== 1 && "s"} in
-                  the city
-                </p>
-              ) : buildings.length > 0 ? (
-                <p className="text-[10px] text-dim">
-                  {buildings.length} building{buildings.length !== 1 && "s"} in
-                  the city
-                </p>
-              ) : (
-                <p className="text-[10px] text-dim normal-case">
-                  Search for a GitHub username to join the city
-                </p>
-              )}
-              <p className="mt-1 text-[9px] text-muted normal-case">
-                built by{" "}
-                <a
-                  href="https://x.com/samuelrizzondev"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors hover:text-cream"
-                  style={{ color: theme.accent }}
-                >
-                  @samuelrizzondev
-                </a>
-              </p>
-            </div>
-
+          {/* Bottom — leaderboard only (info + theme moved to fixed elements) */}
+          <div className="pointer-events-auto flex w-full items-end justify-end">
             {/* Mini Leaderboard - hidden on mobile, rotates categories */}
             {buildings.length > 0 && (
               <MiniLeaderboard buildings={buildings} accent={theme.accent} />
@@ -2046,8 +2034,26 @@ function HomeContent() {
         </div>
       )}
 
-      {/* ─── Lo-fi Radio ─── */}
-      <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
+      {/* ─── Bottom-left controls: Theme + Radio ─── */}
+      {!flyMode && (
+        <div className="pointer-events-auto fixed bottom-10 left-3 z-[25] flex items-center gap-2 sm:left-4">
+          <button
+            onClick={() => setThemeIndex((i) => (i + 1) % THEMES.length)}
+            className="btn-press flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
+          >
+            <span style={{ color: theme.accent }}>&#9654;</span>
+            <span className="text-cream">{theme.name}</span>
+            <span className="text-dim">{themeIndex + 1}/{THEMES.length}</span>
+          </button>
+          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
+        </div>
+      )}
+      {flyMode && (
+        <div className="pointer-events-auto fixed bottom-4 left-3 z-[25] sm:left-4">
+          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
+        </div>
+      )}
+
 
       {/* ─── Activity Ticker ─── */}
       {!flyMode && feedEvents.length >= 1 && (
