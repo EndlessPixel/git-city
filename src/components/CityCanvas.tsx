@@ -1349,6 +1349,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
         accentColor={t.building.accent}
         onBuildingClick={onBuildingClick}
         onFocusInfo={onFocusInfo}
+        introMode={introMode}
       />
 
       <InstancedDecorations items={decorations} roadMarkingColor={t.roadMarkingColor} sidewalkColor={t.sidewalkColor} />

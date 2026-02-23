@@ -32,6 +32,7 @@ interface CitySceneProps {
   accentColor?: string;
   onBuildingClick?: (building: CityBuilding) => void;
   onFocusInfo?: (info: FocusInfo) => void;
+  introMode?: boolean;
 }
 
 export default function CityScene({
@@ -42,6 +43,7 @@ export default function CityScene({
   accentColor,
   onBuildingClick,
   onFocusInfo,
+  introMode,
 }: CitySceneProps) {
   const instancedRef = useRef<THREE.InstancedMesh>(null);
   const lastUpdate = useRef(-1); // -1 so first frame triggers immediately
@@ -79,10 +81,15 @@ export default function CityScene({
     farMaterial.needsUpdate = true;
   }, [focusedBuilding, focusedBuildingB, farMaterial]);
 
-  // Force recalculation when buildings array changes
+  // Force recalculation when buildings array changes or intro mode changes
   useEffect(() => {
     lastUpdate.current = -1;
-  }, [buildings]);
+    // Clear near set when intro starts so all buildings begin as instanced mesh
+    if (introMode) {
+      nearSetRef.current = new Set<string>();
+      setNearBuildings([]);
+    }
+  }, [buildings, introMode]);
 
   // Dispose shared resources on unmount
   useEffect(() => {
@@ -125,6 +132,9 @@ export default function CityScene({
       }
 
       if (dist < LOD_DISTANCE || isFocused) {
+        newNearSet.add(b.login);
+      } else if (introMode && nearSetRef.current.has(b.login)) {
+        // During intro: never remove buildings from near set (additive-only)
         newNearSet.add(b.login);
       } else {
         far.push(b);

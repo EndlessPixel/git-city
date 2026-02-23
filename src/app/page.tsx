@@ -959,14 +959,14 @@ function HomeContent() {
       {/* ─── Intro Flyover Overlay ─── */}
       {introMode && (
         <div className="pointer-events-none fixed inset-0 z-50">
-          {/* Cinematic letterbox bars */}
+          {/* Cinematic letterbox bars (transform: scaleY for composited-only GPU animation) */}
           <div
-            className="absolute inset-x-0 top-0 bg-black/80 transition-all duration-1000"
-            style={{ height: introPhase >= 0 ? "12%" : "0%" }}
+            className="absolute inset-x-0 top-0 origin-top bg-black/80 transition-transform duration-1000"
+            style={{ height: "12%", transform: introPhase >= 0 ? "scaleY(1)" : "scaleY(0)" }}
           />
           <div
-            className="absolute inset-x-0 bottom-0 bg-black/80 transition-all duration-1000"
-            style={{ height: introPhase >= 0 ? "18%" : "0%" }}
+            className="absolute inset-x-0 bottom-0 origin-bottom bg-black/80 transition-transform duration-1000"
+            style={{ height: "18%", transform: introPhase >= 0 ? "scaleY(1)" : "scaleY(0)" }}
           />
 
           {/* Text in the lower bar area */}
@@ -1013,7 +1013,7 @@ function HomeContent() {
           {/* Confetti burst */}
           {introConfetti && (
             <div className="absolute inset-0 overflow-hidden">
-              {Array.from({ length: 60 }).map((_, i) => {
+              {Array.from({ length: 25 }).map((_, i) => {
                 const colors = [theme.accent, "#fff", theme.shadow, "#f0c060", "#e040c0", "#60c0f0"];
                 const color = colors[i % colors.length];
                 const left = 10 + Math.random() * 80;
