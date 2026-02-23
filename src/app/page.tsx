@@ -1034,7 +1034,7 @@ function HomeContent() {
           </div>
 
           {/* Feed toggle (top-right) */}
-          {feedEvents.length >= 3 && (
+          {feedEvents.length >= 1 && (
             <div className="pointer-events-auto absolute top-3 right-3 sm:top-4 sm:right-4">
               <button
                 onClick={() => setFeedPanelOpen(true)}
@@ -2050,7 +2050,7 @@ function HomeContent() {
       <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
 
       {/* ─── Activity Ticker ─── */}
-      {!flyMode && feedEvents.length >= 3 && (
+      {!flyMode && feedEvents.length >= 1 && (
         <ActivityTicker
           events={feedEvents}
           onEventClick={(evt) => {

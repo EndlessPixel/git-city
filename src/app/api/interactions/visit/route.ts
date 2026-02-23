@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   if (!insertError) {
     await admin.rpc("increment_visit_count", { target_dev_id: building.id });
 
-    // Check if building crossed visit milestone (>10 visits today)
+    // Check if building crossed visit milestone (>5 visits today)
     const { count: todayVisits } = await admin
       .from("building_visits")
       .select("visitor_id", { count: "exact", head: true })
