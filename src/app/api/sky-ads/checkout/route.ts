@@ -6,7 +6,6 @@ import { MAX_TEXT_LENGTH } from "@/lib/skyAds";
 import { rateLimit } from "@/lib/rate-limit";
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const ALLOWED_LINK = /^(https:\/\/|mailto:)/;
 
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
@@ -41,9 +40,6 @@ export async function POST(request: NextRequest) {
     text?: string;
     color?: string;
     bgColor?: string;
-    link?: string;
-    brand?: string;
-    description?: string;
     currency?: string;
   };
   try {
@@ -52,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { plan_id, text, color, bgColor, link, brand, description } = body;
+  const { plan_id, text, color, bgColor } = body;
 
   // Brazilian Stripe CNPJ can't charge USD to Brazilian cards.
   // Detect country via Vercel/CF geolocation headers and force BRL for BR users.
@@ -87,38 +83,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid background color (use #RRGGBB)" }, { status: 400 });
   }
 
-  // Validate link (optional but must be valid if provided)
-  if (link && !ALLOWED_LINK.test(link)) {
-    return NextResponse.json(
-      { error: "Link must start with https:// or mailto:" },
-      { status: 400 }
-    );
-  }
-
-  // Validate brand
-  const safeBrand = brand ? String(brand).slice(0, 60) : undefined;
-  const safeDescription = description ? String(description).slice(0, 200) : undefined;
-
   const plan = SKY_AD_PLANS[plan_id];
   const sb = getSupabaseAdmin();
 
   // Generate IDs
-  const adId = safeBrand
-    ? safeBrand.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) +
-      "-" +
-      generateToken().slice(0, 6)
-    : "ad-" + generateToken().slice(0, 16);
+  const adId = "ad-" + generateToken().slice(0, 16);
   const trackingToken = generateToken();
 
-  // Create inactive sky_ad row
+  // Create inactive sky_ad row (brand/description/link set post-checkout)
   const { error: insertError } = await sb.from("sky_ads").insert({
     id: adId,
     text: text.trim(),
-    brand: safeBrand,
-    description: safeDescription || null,
+    brand: null,
+    description: null,
     color,
     bg_color: bgColor,
-    link: link || null,
+    link: null,
     vehicle: plan.vehicle,
     priority: 50,
     active: false,
@@ -156,7 +136,7 @@ export async function POST(request: NextRequest) {
         sky_ad_id: adId,
         type: "sky_ad",
       },
-      success_url: `${baseUrl}/advertise?success=${trackingToken}`,
+      success_url: `${baseUrl}/advertise/setup/${trackingToken}`,
       cancel_url: `${baseUrl}/advertise`,
     });
 

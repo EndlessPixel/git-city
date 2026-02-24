@@ -162,7 +162,17 @@ export default async function TrackingPage({ params }: Props) {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-[9px] text-muted normal-case">
+        <div className="mt-6 text-center">
+          <Link
+            href={`/advertise/setup/${token}`}
+            className="text-[10px] normal-case transition-colors hover:text-cream"
+            style={{ color: ACCENT }}
+          >
+            Edit ad details &rarr;
+          </Link>
+        </div>
+
+        <p className="mt-4 text-center text-[9px] text-muted normal-case">
           Bookmark this page to check your ad stats anytime.
           <br />
           Stats update in real time as visitors interact with your ad in the 3D city.

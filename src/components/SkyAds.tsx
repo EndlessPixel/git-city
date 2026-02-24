@@ -115,6 +115,7 @@ export function createLedTexture(text: string, color: string, bgColor: string) {
   ctx.globalAlpha = 1;
 
   const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.NearestFilter;
   tex.magFilter = THREE.NearestFilter;
   if (needsScroll) {
@@ -157,13 +158,13 @@ function BannerPlane({
   const ledMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        map: tex,
+        color: "#000000",
         emissiveMap: tex,
-        emissive: new THREE.Color(ad.color),
-        emissiveIntensity: 1.5,
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
         toneMapped: false,
       }),
-    [tex, ad.color]
+    [tex]
   );
 
   // Banner dimensions
@@ -328,13 +329,13 @@ function Blimp({
   const ledMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        map: tex,
+        color: "#000000",
         emissiveMap: tex,
-        emissive: new THREE.Color(ad.color),
-        emissiveIntensity: 1.5,
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
         toneMapped: false,
       }),
-    [tex, ad.color]
+    [tex]
   );
 
   useEffect(() => {

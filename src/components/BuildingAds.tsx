@@ -63,15 +63,15 @@ function AdBillboard({
   const ledMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        map: tex,
+        color: "#000000",
         emissiveMap: tex,
-        emissive: new THREE.Color(ad.color),
-        emissiveIntensity: 1.8,
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
         toneMapped: false,
         polygonOffset: true,
         polygonOffsetFactor: -1,
       }),
-    [tex, ad.color]
+    [tex]
   );
 
   useEffect(() => {
@@ -152,13 +152,13 @@ function AdRooftopSign({
   const ledMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        map: tex,
+        color: "#000000",
         emissiveMap: tex,
-        emissive: new THREE.Color(ad.color),
-        emissiveIntensity: 1.5,
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
         toneMapped: false,
       }),
-    [tex, ad.color]
+    [tex]
   );
 
   useEffect(() => {
@@ -258,13 +258,13 @@ function AdLedWrap({
   const ledMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        map: tex,
+        color: "#000000",
         emissiveMap: tex,
-        emissive: new THREE.Color(ad.color),
-        emissiveIntensity: 1.5,
+        emissive: "#ffffff",
+        emissiveIntensity: 1.2,
         toneMapped: false,
       }),
-    [tex, ad.color]
+    [tex]
   );
 
   const accentMat = useMemo(

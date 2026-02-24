@@ -3,7 +3,6 @@ import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { AdvertisePageTracker } from "./tracking";
 import { AdPurchaseForm } from "./AdPurchaseForm";
-import { SuccessBanner } from "./SuccessBanner";
 
 const ACCENT = "#c8e64a";
 const SHADOW = "#5a7a00";
@@ -51,234 +50,180 @@ export default async function AdvertisePage() {
 
   return (
     <main className="min-h-screen bg-bg font-pixel uppercase text-warm">
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <AdvertisePageTracker />
+
+      {/* ═══════════════════════════════════════════
+          ZONE 1: THE BUILDER
+          Purchase flow. Focused. No distractions.
+          ═══════════════════════════════════════════ */}
+      <div className="mx-auto max-w-3xl px-4 pt-6 pb-10">
         {/* Nav */}
-        <Link
-          href="/"
-          className="text-xs text-muted transition-colors hover:text-cream"
-        >
-          &larr; Back to City
-        </Link>
-
-        <AdvertisePageTracker />
-        <SuccessBanner />
-
-        {/* Hero */}
-        <section className="mt-10 text-center">
-          <h1 className="text-3xl text-cream md:text-4xl">
-            Advertise on <span style={{ color: ACCENT }}>Git City</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-xs text-muted normal-case">
-            Your brand across {devCount.toLocaleString()}+ developer
-            buildings. Sky banners, building billboards, rooftop signs, LED wraps. Full analytics.
-          </p>
-          <p className="mt-2 text-[10px] normal-case" style={{ color: ACCENT }}>
-            Prices scale with the city. Get in early.
-          </p>
-        </section>
-
-        {/* Purchase Form */}
-        <section className="mt-14">
-          <h2 className="text-center text-xl text-cream">
-            Pick a <span style={{ color: ACCENT }}>plan</span>
-          </h2>
-          <p className="mt-2 text-center text-[10px] text-muted normal-case">
-            Configure your ad and pay instantly. No account needed.
-          </p>
-
-          <div className="mt-6">
-            <AdPurchaseForm />
-          </div>
-        </section>
-
-        {/* What's included */}
-        <section className="mt-14">
-          <h2 className="text-center text-xl text-cream">
-            Every ad <span style={{ color: ACCENT }}>includes</span>
-          </h2>
-
-          <div className="mx-auto mt-6 max-w-md border-[3px] border-border p-5">
-            <ul className="space-y-3">
-              {[
-                "Custom text up to 80 characters",
-                "Your brand colors on the banner",
-                "Clickable link with UTM tracking",
-                "Impression + click analytics dashboard",
-                "Instant activation after payment",
-                "Runs for the full paid duration",
-              ].map((feature) => (
-                <li
-                  key={feature}
-                  className="flex items-start gap-3 text-[10px] text-muted normal-case"
-                >
-                  <span
-                    className="mt-0.5 text-xs"
-                    style={{ color: ACCENT }}
-                  >
-                    +
-                  </span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        {/* How it works */}
-        <section className="mt-14">
-          <h2 className="text-center text-xl text-cream">
-            How it <span style={{ color: ACCENT }}>works</span>
-          </h2>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "Configure",
-                desc: "Pick your ad format and duration. Set your banner text, colors, and link.",
-              },
-              {
-                step: "02",
-                title: "Pay",
-                desc: "Secure checkout via Stripe. Credit card, Apple Pay, Google Pay. No account needed.",
-              },
-              {
-                step: "03",
-                title: "Go Live",
-                desc: "Your ad activates instantly. Track impressions and clicks in real time via your tracking link.",
-              },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="border-[3px] border-border p-5"
-              >
-                <span
-                  className="text-2xl"
-                  style={{ color: ACCENT }}
-                >
-                  {item.step}
-                </span>
-                <h3 className="mt-2 text-sm text-cream">{item.title}</h3>
-                <p className="mt-2 text-[10px] leading-relaxed text-muted normal-case">
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Stats */}
-        <section className="mt-14">
-          <h2 className="text-center text-xl text-cream">
-            Real <span style={{ color: ACCENT }}>numbers</span>
-          </h2>
-
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            <div className="border-[3px] border-border p-5 text-center">
-              <p className="text-2xl text-cream md:text-3xl" style={{ color: ACCENT }}>
-                {devCount.toLocaleString()}+
-              </p>
-              <p className="mt-2 text-[10px] text-muted normal-case">
-                developer buildings
-              </p>
-            </div>
-            <div className="border-[3px] border-border p-5 text-center">
-              <p className="text-2xl text-cream md:text-3xl" style={{ color: ACCENT }}>
-                {totalImpressions.toLocaleString()}+
-              </p>
-              <p className="mt-2 text-[10px] text-muted normal-case">
-                ad impressions served
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ */}
-        <section className="mt-14">
-          <h2 className="text-center text-xl text-cream">
-            <span style={{ color: ACCENT }}>FAQ</span>
-          </h2>
-
-          <div className="mx-auto mt-6 max-w-lg space-y-4">
-            {[
-              {
-                q: "How many people will see my ad?",
-                a: `The city has ${devCount.toLocaleString()}+ developer buildings and is growing every day. Every visitor sees the ads as they explore the city.`,
-              },
-              {
-                q: "What ad formats are available?",
-                a: "Sky Ads: planes towing LED banners and blimps with LED screens. Building Ads: billboards on building faces, rotating rooftop signs, and LED wraps around buildings. All use the same LED dot-matrix style.",
-              },
-              {
-                q: "Can I change my ad text during the campaign?",
-                a: "Yes. One free text change per week. Just email samuelrizzondev@gmail.com.",
-              },
-              {
-                q: "What if I want to cancel?",
-                a: "Refund available within the first 3 days. After that, your ad runs until the end of the paid period.",
-              },
-              {
-                q: "How do I pay?",
-                a: "Credit card, Apple Pay, or Google Pay via Stripe. Secure checkout, no account needed.",
-              },
-              {
-                q: "How many slots?",
-                a: "4 plane slots, 2 blimp slots, and 10 slots each for billboard, rooftop sign, and LED wrap. Limited inventory keeps your ad visible.",
-              },
-              {
-                q: "When does my ad go live?",
-                a: "Instantly after payment. Your ad appears in the city right away and you get a tracking link.",
-              },
-            ].map((item) => (
-              <div
-                key={item.q}
-                className="border-[3px] border-border p-5"
-              >
-                <h3 className="text-[11px] text-cream">{item.q}</h3>
-                <p className="mt-2 text-[10px] leading-relaxed text-muted normal-case">
-                  {item.a}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Footer */}
-        <div className="mt-14 text-center">
+        <div className="flex items-center justify-between">
           <Link
             href="/"
-            className="btn-press inline-block px-7 py-3.5 text-sm text-bg"
-            style={{
-              backgroundColor: ACCENT,
-              boxShadow: `4px 4px 0 0 ${SHADOW}`,
-            }}
+            className="text-xs text-muted transition-colors hover:text-cream"
           >
-            Enter the City
+            &larr; Back to City
           </Link>
+          <div className="flex items-center gap-4 text-[9px] text-muted normal-case">
+            <span>
+              <span style={{ color: ACCENT }}>
+                {devCount.toLocaleString()}+
+              </span>{" "}
+              buildings
+            </span>
+            <span>
+              <span style={{ color: ACCENT }}>
+                {totalImpressions.toLocaleString()}+
+              </span>{" "}
+              impressions
+            </span>
+          </div>
+        </div>
 
-          <p className="mt-4 text-[9px] text-muted normal-case">
-            Questions? Email{" "}
-            <a
-              href="mailto:samuelrizzondev@gmail.com"
-              className="transition-colors hover:text-cream"
-              style={{ color: ACCENT }}
-            >
-              samuelrizzondev@gmail.com
-            </a>
+        {/* Hero text */}
+        <div className="mt-8 text-center">
+          <h1 className="text-2xl text-cream sm:text-3xl">
+            Your brand in the <span style={{ color: ACCENT }}>city</span>
+          </h1>
+          <p className="mt-2 text-[10px] text-muted normal-case">
+            Pick a format, write your message, see it live. Pay when ready.
           </p>
+        </div>
 
-          <p className="mt-6 text-[9px] text-muted normal-case">
-            built by{" "}
-            <a
-              href="https://x.com/samuelrizzondev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="transition-colors hover:text-cream"
-              style={{ color: ACCENT }}
+        {/* Purchase form: preview + control panel */}
+        <div className="mt-6">
+          <AdPurchaseForm />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════
+          ZONE 2: THE PROOF
+          For people who scroll down to learn more.
+          ═══════════════════════════════════════════ */}
+      <div
+        className="border-t-[3px] border-border"
+        style={{ backgroundColor: "#080e1c" }}
+      >
+        <div className="mx-auto max-w-3xl px-4 py-14">
+          {/* How it works */}
+          <div className="grid gap-6 sm:grid-cols-4">
+            {[
+              { n: "01", t: "Pick", d: "Choose sky or building format" },
+              { n: "02", t: "Write", d: "Set your text and brand colors" },
+              { n: "03", t: "Pay", d: "Instant Stripe checkout" },
+              { n: "04", t: "Live", d: "Ad activates immediately" },
+            ].map((s) => (
+              <div key={s.n}>
+                <span className="text-xl" style={{ color: ACCENT }}>
+                  {s.n}
+                </span>
+                <h3 className="mt-1 text-xs text-cream">{s.t}</h3>
+                <p className="mt-1 text-[9px] leading-relaxed text-muted normal-case">
+                  {s.d}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Included features */}
+          <div className="mt-12 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            <p className="mb-2 text-xs text-cream sm:col-span-2">
+              Every ad includes
+            </p>
+            {[
+              "Custom text up to 80 characters",
+              "Your brand colors on the LED panel",
+              "Clickable link with UTM tracking",
+              "Impression + click analytics",
+              "Instant activation after payment",
+              "Runs for the full paid duration",
+            ].map((f) => (
+              <p
+                key={f}
+                className="flex items-center gap-2 text-[10px] text-muted normal-case"
+              >
+                <span style={{ color: ACCENT }}>+</span>
+                {f}
+              </p>
+            ))}
+          </div>
+
+          {/* FAQ */}
+          <div className="mt-12">
+            <p className="mb-4 text-xs text-cream">FAQ</p>
+            <div className="space-y-3">
+              {[
+                {
+                  q: "How many people will see my ad?",
+                  a: `The city has ${devCount.toLocaleString()}+ developer buildings and growing. Every visitor sees ads as they explore.`,
+                },
+                {
+                  q: "What formats are available?",
+                  a: "Sky: planes with LED banners, blimps with LED screens. Building: billboards, rotating rooftop signs, LED wraps. All dot-matrix LED style.",
+                },
+                {
+                  q: "Can I change my ad text?",
+                  a: "Yes. One free text change per week. Email samuelrizzondev@gmail.com.",
+                },
+                {
+                  q: "What if I want a refund?",
+                  a: "Available within the first 3 days. After that it runs until the end of the paid period.",
+                },
+                {
+                  q: "How do I pay?",
+                  a: "Credit card, Apple Pay, or Google Pay via Stripe. No account needed.",
+                },
+                {
+                  q: "How many slots per format?",
+                  a: "4 plane, 2 blimp, 10 each for billboard, rooftop, and LED wrap. Limited inventory keeps your ad visible.",
+                },
+              ].map((item) => (
+                <div key={item.q} className="border-[2px] border-border p-4">
+                  <h3 className="text-[10px] text-cream">{item.q}</h3>
+                  <p className="mt-1.5 text-[9px] leading-relaxed text-muted normal-case">
+                    {item.a}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-12 text-center">
+            <Link
+              href="/"
+              className="btn-press inline-block px-7 py-3.5 text-sm text-bg"
+              style={{
+                backgroundColor: ACCENT,
+                boxShadow: `4px 4px 0 0 ${SHADOW}`,
+              }}
             >
-              @samuelrizzondev
-            </a>
-          </p>
+              Enter the City
+            </Link>
+            <p className="mt-4 text-[9px] text-muted normal-case">
+              Questions?{" "}
+              <a
+                href="mailto:samuelrizzondev@gmail.com"
+                className="transition-colors hover:text-cream"
+                style={{ color: ACCENT }}
+              >
+                samuelrizzondev@gmail.com
+              </a>
+            </p>
+            <p className="mt-4 text-[9px] text-muted normal-case">
+              built by{" "}
+              <a
+                href="https://x.com/samuelrizzondev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-cream"
+                style={{ color: ACCENT }}
+              >
+                @samuelrizzondev
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </main>
