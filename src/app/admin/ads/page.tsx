@@ -6,6 +6,7 @@ interface AdStats {
   id: string;
   brand: string;
   text: string;
+  description: string | null;
   color: string;
   bg_color: string;
   link: string | null;
@@ -272,7 +273,7 @@ export default function AdminAdsPage() {
     setEditForm({
       brand: ad.brand,
       text: ad.text,
-      description: "",
+      description: ad.description ?? "",
       color: ad.color,
       bg_color: ad.bg_color,
       link: ad.link ?? "",
@@ -294,6 +295,7 @@ export default function AdminAdsPage() {
           id: editingId,
           brand: editForm.brand,
           text: editForm.text,
+          description: editForm.description || null,
           color: editForm.color,
           bg_color: editForm.bg_color,
           link: editForm.link || null,
@@ -807,6 +809,16 @@ export default function AdminAdsPage() {
                             maxLength={80}
                             value={editForm.text}
                             onChange={(e) => setEditForm({ ...editForm, text: e.target.value })}
+                            className="w-full border border-border bg-bg px-3 py-2 text-xs text-cream outline-none focus:border-lime"
+                          />
+                        </div>
+                        <div className="sm:col-span-2 lg:col-span-3">
+                          <label className="mb-1 block text-[11px] text-muted">Description (shown on click dialog)</label>
+                          <textarea
+                            maxLength={200}
+                            rows={2}
+                            value={editForm.description}
+                            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                             className="w-full border border-border bg-bg px-3 py-2 text-xs text-cream outline-none focus:border-lime"
                           />
                         </div>

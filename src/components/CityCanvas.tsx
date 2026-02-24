@@ -1123,6 +1123,73 @@ function River({ river, waterColor, waterEmissive }: { river: CityRiver; waterCo
   );
 }
 
+// ─── River Text (watermark) ──────────────────────────────────
+
+function RiverText({ river }: { river: CityRiver }) {
+  const [fontReady, setFontReady] = useState(false);
+  const texRef = useRef<THREE.CanvasTexture | null>(null);
+
+  useEffect(() => {
+    document.fonts.ready.then(() => setFontReady(true));
+  }, []);
+
+  const texture = useMemo(() => {
+    if (!fontReady) return null;
+
+    // Canvas: narrow (river width) x tall (river length)
+    // UV maps: canvas X → plane X (river width), canvas Y → plane Z (river length)
+    const cW = 256;
+    const cH = 4096;
+    const c = document.createElement("canvas");
+    c.width = cW;
+    c.height = cH;
+    const ctx = c.getContext("2d")!;
+    ctx.clearRect(0, 0, cW, cH);
+
+    // Rotate context so horizontal text runs along canvas Y (= river Z)
+    ctx.save();
+    ctx.translate(cW / 2, cH / 2);
+    ctx.rotate(-Math.PI / 2);
+
+    // After rotation: text "width" spans canvas height (river length)
+    // text "height" spans canvas width (river width)
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = 'bold 100px "Silkscreen", monospace';
+    ctx.fillText("$GITC  -  CA: 0xd523f92f5f313288cf69ac9ca456b8a7d7a6dba3", 0, 0);
+
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    texRef.current = tex;
+    return tex;
+  }, [fontReady]);
+
+  useEffect(() => {
+    return () => { texRef.current?.dispose(); };
+  }, []);
+
+  if (!texture) return null;
+
+  return (
+    <mesh
+      position={[river.x + river.width / 2, 0.6, river.centerZ]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={2}
+    >
+      <planeGeometry args={[river.width, river.length]} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
 // ─── Bridge ──────────────────────────────────────────────────
 
 function Bridge({ bridge }: { bridge: CityBridge }) {
@@ -1352,6 +1419,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {river && (
         <>
           <River river={river} waterColor={t.waterColor} waterEmissive={t.waterEmissive} />
+          <RiverText river={river} />
           <Waterfront river={river} dockColor={t.dockColor} />
         </>
       )}

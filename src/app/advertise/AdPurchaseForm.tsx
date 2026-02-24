@@ -95,6 +95,7 @@ export function AdPurchaseForm() {
   const [selectedPlan, setSelectedPlan] = useState<SkyAdPlanId>("plane_weekly");
   const [text, setText] = useState("");
   const [brand, setBrand] = useState("");
+  const [description, setDescription] = useState("");
   const [link, setLink] = useState("");
   const [color, setColor] = useState("#f8d880");
   const [bgColor, setBgColor] = useState("#1a1018");
@@ -138,6 +139,7 @@ export function AdPurchaseForm() {
           bgColor,
           link: link || undefined,
           brand: brand || undefined,
+          description: description || undefined,
           currency,
         }),
       });
@@ -278,6 +280,24 @@ export function AdPurchaseForm() {
             placeholder="Your Company"
             className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream outline-none transition-colors focus:border-[#c8e64a]"
           />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-[10px] text-muted normal-case">
+            Description (optional)
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={200}
+            rows={2}
+            placeholder="Shown when someone clicks your ad"
+            className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream normal-case outline-none transition-colors focus:border-[#c8e64a]"
+          />
+          <p className="mt-1 text-[9px] text-muted normal-case">
+            {description.length}/200
+          </p>
         </div>
 
         {/* Link */}

@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   }
 
   // Get all ads with full details
-  const { data: allAds } = await admin.from("sky_ads").select("id, brand, text, color, bg_color, link, active, vehicle, priority, plan_id, starts_at, ends_at, purchaser_email, tracking_token, created_at");
+  const { data: allAds } = await admin.from("sky_ads").select("id, brand, text, description, color, bg_color, link, active, vehicle, priority, plan_id, starts_at, ends_at, purchaser_email, tracking_token, created_at");
   const adMap = new Map((allAds ?? []).map((a) => [a.id, a]));
 
   // Aggregate by ad_id
@@ -67,6 +67,7 @@ export async function GET(request: Request) {
       id,
       brand: ad?.brand ?? id,
       text: ad?.text ?? "",
+      description: ad?.description ?? null,
       color: ad?.color ?? "#f8d880",
       bg_color: ad?.bg_color ?? "#1a1018",
       link: ad?.link ?? null,

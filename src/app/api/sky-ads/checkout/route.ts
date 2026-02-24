@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
     bgColor?: string;
     link?: string;
     brand?: string;
+    description?: string;
     currency?: string;
   };
   try {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { plan_id, text, color, bgColor, link, brand } = body;
+  const { plan_id, text, color, bgColor, link, brand, description } = body;
 
   // Brazilian Stripe CNPJ can't charge USD to Brazilian cards.
   // Detect country via Vercel/CF geolocation headers and force BRL for BR users.
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
 
   // Validate brand
   const safeBrand = brand ? String(brand).slice(0, 60) : undefined;
+  const safeDescription = description ? String(description).slice(0, 200) : undefined;
 
   const plan = SKY_AD_PLANS[plan_id];
   const sb = getSupabaseAdmin();
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
     id: adId,
     text: text.trim(),
     brand: safeBrand,
+    description: safeDescription || null,
     color,
     bg_color: bgColor,
     link: link || null,
