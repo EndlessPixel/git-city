@@ -66,6 +66,7 @@ interface CitySceneProps {
   colors: BuildingColors;
   focusedBuilding?: string | null;
   focusedBuildingB?: string | null;
+  hideEffectsFor?: string | null;
   accentColor?: string;
   onBuildingClick?: (building: CityBuilding) => void;
   onFocusInfo?: (info: FocusInfo) => void;
@@ -78,6 +79,7 @@ export default function CityScene({
   colors,
   focusedBuilding,
   focusedBuildingB,
+  hideEffectsFor,
   accentColor,
   onBuildingClick,
   onFocusInfo,
@@ -172,6 +174,8 @@ export default function CityScene({
         colors={colors}
         accentColor={accentColor ?? colors.accent ?? "#c8e64a"}
         focusedBuilding={focusedBuilding}
+        focusedBuildingB={focusedBuildingB}
+        hideEffectsFor={hideEffectsFor}
         introMode={introMode}
         flyMode={flyMode}
       />

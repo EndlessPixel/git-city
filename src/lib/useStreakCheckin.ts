@@ -3,6 +3,12 @@
 import { useState, useEffect } from "react";
 import type { Session } from "@supabase/supabase-js";
 
+export interface RaidSinceLast {
+  attacker_login: string;
+  success: boolean;
+  created_at: string;
+}
+
 export interface StreakData {
   checked_in: boolean;
   already_today: boolean;
@@ -12,6 +18,7 @@ export interface StreakData {
   new_achievements: string[];
   unseen_count: number;
   kudos_since_last: number;
+  raids_since_last?: RaidSinceLast[];
 }
 
 const CACHE_KEY = "gc_checkin";

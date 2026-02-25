@@ -8,9 +8,10 @@ interface LofiRadioProps {
   accent: string;
   shadow: string;
   flyMode: boolean;
+  raidMode?: boolean;
 }
 
-export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
+export default function LofiRadio({ accent, shadow, flyMode, raidMode }: LofiRadioProps) {
   const [expanded, setExpanded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [trackIndex, setTrackIndex] = useState(0);
@@ -168,6 +169,16 @@ export default function LofiRadio({ accent, shadow, flyMode }: LofiRadioProps) {
       howlRef.current.volume(muted ? 0 : volume);
     }
   }, [volume, muted, playing]);
+
+  // Duck volume during raid mode
+  useEffect(() => {
+    if (!howlRef.current || !playing) return;
+    if (raidMode) {
+      howlRef.current.fade(howlRef.current.volume(), volume * 0.2, 500);
+    } else {
+      howlRef.current.fade(howlRef.current.volume(), muted ? 0 : volume, 500);
+    }
+  }, [raidMode, playing, volume, muted]);
 
   const currentTrack = TRACKS[trackIndex];
 

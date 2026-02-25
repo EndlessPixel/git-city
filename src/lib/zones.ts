@@ -33,6 +33,18 @@ export const ITEM_NAMES: Record<string, string> = {
   neon_outline: "Neon Outline",
   particle_aura: "Particle Aura",
   streak_freeze: "Streak Freeze",
+  // Raid vehicles
+  raid_helicopter: "Helicopter",
+  raid_drone: "Stealth Drone",
+  raid_rocket: "Rocket",
+  // Raid tags
+  tag_neon: "Neon Tag",
+  tag_fire: "Fire Tag",
+  tag_gold: "Gold Tag",
+  // Raid boosters
+  raid_boost_small: "War Paint",
+  raid_boost_medium: "Battle Armor",
+  raid_boost_large: "EMP Device",
 };
 
 // Correct mapping: item_id → achievement that unlocks it (from migration 007 seed)
@@ -53,6 +65,20 @@ export const ITEM_EMOJIS: Record<string, string> = {
   custom_color: "🎨", billboard: "📺", led_banner: "🪧",
   neon_outline: "🔮", particle_aura: "✨",
   streak_freeze: "🧊",
+  // Raid
+  raid_helicopter: "🚁",
+  raid_drone: "🛸",
+  raid_rocket: "🚀",
+  tag_neon: "🌈",
+  tag_fire: "🔥",
+  tag_gold: "🥇",
+  raid_boost_small: "🎨",
+  raid_boost_medium: "🛡️",
+  raid_boost_large: "💣",
 };
 
 export const FACES_ITEMS = ["custom_color", "billboard", "led_banner"];
+
+export const RAID_VEHICLE_ITEMS = ["raid_helicopter", "raid_drone", "raid_rocket"];
+export const RAID_TAG_ITEMS = ["tag_neon", "tag_fire", "tag_gold"];
+export const RAID_BOOST_ITEMS = ["raid_boost_small", "raid_boost_medium", "raid_boost_large"];

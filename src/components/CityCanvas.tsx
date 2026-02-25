@@ -11,6 +11,9 @@ import { seededRandom } from "@/lib/github";
 import SkyAds from "./SkyAds";
 import BuildingAds from "./BuildingAds";
 import type { SkyAd } from "@/lib/skyAds";
+import RaidSequence3D, { VehicleMesh } from "./RaidSequence3D";
+import type { RaidPhase } from "@/lib/useRaidSequence";
+import type { RaidExecuteResponse } from "@/lib/raid";
 
 // ─── Theme Definitions ───────────────────────────────────────
 
@@ -447,7 +450,7 @@ const _idealLook = new THREE.Vector3();
 const _blendedPos = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
 
-function AirplaneFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = false }: { onExit: () => void; onHud: (s: number, a: number) => void; onPause: (paused: boolean) => void; pauseSignal?: number; hasOverlay?: boolean }) {
+function AirplaneFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = false, vehicleType = "airplane" }: { onExit: () => void; onHud: (s: number, a: number) => void; onPause: (paused: boolean) => void; pauseSignal?: number; hasOverlay?: boolean; vehicleType?: string }) {
   const { camera } = useThree();
   const ref = useRef<THREE.Group>(null);
   const orbitRef = useRef<any>(null);
@@ -651,17 +654,18 @@ function AirplaneFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = 
     if (k["KeyW"] || k["ArrowUp"]) altInput = 1;
     if (k["KeyS"] || k["ArrowDown"]) altInput = -1;
 
-    pos.current.y += altInput * CLIMB_RATE * dt;
-    pos.current.y = Math.max(MIN_ALT, Math.min(MAX_ALT, pos.current.y));
-
-    // Shift = boost 2x, Ctrl = slow 0.3x
+    // Shift = boost 2x, Alt = slow 0.3x
     let speedMult = 1;
     if (k["ShiftLeft"] || k["ShiftRight"]) speedMult = 2;
     if (k["AltLeft"] || k["AltRight"]) speedMult = 0.3;
 
-    const altFactor = -altInput * 0.4;
-    const targetSpeed = flySpeed.current + altFactor * flySpeed.current * 0.3;
-    const actualSpeed = (flySpeed.current + (targetSpeed - flySpeed.current) * 0.5) * speedMult;
+    const actualSpeed = flySpeed.current * speedMult;
+
+    // Climb scales gently with speed using sqrt so it stays proportional
+    // without getting out of control at high speeds
+    const climbScale = Math.sqrt(actualSpeed / DEFAULT_FLY_SPEED);
+    pos.current.y += altInput * CLIMB_RATE * climbScale * dt;
+    pos.current.y = Math.max(MIN_ALT, Math.min(MAX_ALT, pos.current.y));
 
     _fwd.set(-Math.sin(yaw.current), 0, -Math.cos(yaw.current));
     pos.current.addScaledVector(_fwd, actualSpeed * dt);
@@ -717,7 +721,9 @@ function AirplaneFlight({ onExit, onHud, onPause, pauseSignal = 0, hasOverlay = 
   return (
     <>
       <group ref={ref}>
-        <PlaneModel />
+        <group scale={[4, 4, 4]}>
+          <VehicleMesh type={vehicleType} />
+        </group>
         <pointLight position={[0, -2, 0]} color="#f0c870" intensity={15} distance={60} />
         <pointLight position={[0, 3, -4]} color="#ffffff" intensity={5} distance={30} />
       </group>
@@ -1359,6 +1365,7 @@ interface Props {
   river?: CityRiver | null;
   bridges?: CityBridge[];
   flyMode: boolean;
+  flyVehicle?: string;
   onExitFly: () => void;
   themeIndex: number;
   onHud?: (speed: number, altitude: number) => void;
@@ -1376,9 +1383,14 @@ interface Props {
   onAdViewed?: (adId: string) => void;
   introMode?: boolean;
   onIntroEnd?: () => void;
+  raidPhase?: RaidPhase;
+  raidData?: RaidExecuteResponse | null;
+  raidAttacker?: CityBuilding | null;
+  raidDefender?: CityBuilding | null;
+  onRaidPhaseComplete?: (phase: RaidPhase) => void;
 }
 
-export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd }: Props) {
+export default function CityCanvas({ buildings, plazas, decorations, river, bridges, flyMode, flyVehicle, onExitFly, themeIndex, onHud, onPause, focusedBuilding, focusedBuildingB, accentColor, onClearFocus, onBuildingClick, onFocusInfo, flyPauseSignal, flyHasOverlay, skyAds, onAdClick, onAdViewed, introMode, onIntroEnd, raidPhase, raidData, raidAttacker, raidDefender, onRaidPhaseComplete }: Props) {
   const t = THEMES[themeIndex] ?? THEMES[0];
   const showPerf = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("perf");
 
@@ -1409,11 +1421,21 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
 
       {introMode && <IntroFlyover onEnd={onIntroEnd ?? (() => {})} />}
 
-      {!introMode && !flyMode && (
+      {!introMode && !flyMode && (!raidPhase || raidPhase === "idle" || raidPhase === "preview") && (
         <OrbitScene buildings={buildings} focusedBuilding={focusedBuilding ?? null} focusedBuildingB={focusedBuildingB} />
       )}
 
-      {!introMode && flyMode && <AirplaneFlight onExit={onExitFly} onHud={onHud ?? (() => {})} onPause={onPause ?? (() => {})} pauseSignal={flyPauseSignal} hasOverlay={flyHasOverlay} />}
+      {raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && (
+        <RaidSequence3D
+          phase={raidPhase}
+          attacker={raidAttacker ?? null}
+          defender={raidDefender ?? null}
+          raidData={raidData ?? null}
+          onPhaseComplete={onRaidPhaseComplete ?? (() => {})}
+        />
+      )}
+
+      {!introMode && flyMode && <AirplaneFlight onExit={onExitFly} onHud={onHud ?? (() => {})} onPause={onPause ?? (() => {})} pauseSignal={flyPauseSignal} hasOverlay={flyHasOverlay} vehicleType={flyVehicle} />}
 
       <Ground key={`ground-${themeIndex}`} color={t.groundColor} grid1={t.grid1} grid2={t.grid2} />
 
@@ -1432,8 +1454,9 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       <CityScene
         buildings={buildings}
         colors={t.building}
-        focusedBuilding={focusedBuilding}
-        focusedBuildingB={focusedBuildingB}
+        focusedBuilding={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidDefender?.login ?? focusedBuilding) : focusedBuilding}
+        focusedBuildingB={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : focusedBuildingB}
+        hideEffectsFor={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : null}
         accentColor={t.building.accent}
         onBuildingClick={onBuildingClick}
         onFocusInfo={onFocusInfo}
@@ -1446,7 +1469,14 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
       {skyAds && skyAds.length > 0 && (
         <>
           <SkyAds ads={skyAds} cityRadius={cityRadius} flyMode={flyMode} onAdClick={onAdClick} onAdViewed={onAdViewed} />
-          <BuildingAds ads={skyAds} buildings={buildings} onAdClick={onAdClick} onAdViewed={onAdViewed} />
+          <BuildingAds
+            ads={skyAds}
+            buildings={buildings}
+            onAdClick={onAdClick}
+            onAdViewed={onAdViewed}
+            focusedBuilding={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidDefender?.login ?? focusedBuilding) : focusedBuilding}
+            focusedBuildingB={raidPhase && raidPhase !== "idle" && raidPhase !== "preview" && raidPhase !== "share" && raidPhase !== "done" ? (raidAttacker?.login ?? null) : focusedBuildingB}
+          />
         </>
       )}
     </Canvas>

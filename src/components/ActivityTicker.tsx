@@ -43,6 +43,12 @@ function formatEvent(e: FeedEvent): string {
       return `\u{1F4C8} ${meta.login ? `@${meta.login}` : actor} climbed to #${meta.new_rank ?? "?"}`;
     case "leaderboard_change":
       return `\u{1F451} ${meta.login ? `@${meta.login}` : actor} entered top ${meta.position ?? 3}!`;
+    case "raid_success":
+      return `\u{1F4A5} ${meta.attacker_login ? `@${meta.attacker_login}` : actor} raided ${meta.defender_login ? `@${meta.defender_login}` : target}'s building`;
+    case "raid_failed":
+      return `\u{1F6E1} ${meta.defender_login ? `@${meta.defender_login}` : target} defended against ${meta.attacker_login ? `@${meta.attacker_login}` : actor}`;
+    case "streak_checkin":
+      return `\u{1F525} ${meta.login ? `@${meta.login}` : actor} checked in (${meta.streak}-day streak)`;
     case "dev_highlight": {
       const login = meta.login ? `@${meta.login}` : actor;
       switch (meta.highlight) {

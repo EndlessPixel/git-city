@@ -365,9 +365,11 @@ interface BuildingAdsProps {
   buildings: CityBuilding[];
   onAdClick?: (ad: SkyAd) => void;
   onAdViewed?: (adId: string) => void;
+  focusedBuilding?: string | null;
+  focusedBuildingB?: string | null;
 }
 
-export default function BuildingAds({ ads, buildings, onAdClick, onAdViewed }: BuildingAdsProps) {
+export default function BuildingAds({ ads, buildings, onAdClick, onAdViewed, focusedBuilding, focusedBuildingB }: BuildingAdsProps) {
   const meshRefs = useRef<Map<string, THREE.Mesh>>(new Map());
 
   const top10 = useMemo(
@@ -391,54 +393,66 @@ export default function BuildingAds({ ads, buildings, onAdClick, onAdViewed }: B
     return null;
   }
 
+  const focusedLower = focusedBuilding?.toLowerCase() ?? null;
+  const focusedBLower = focusedBuildingB?.toLowerCase() ?? null;
+
   return (
     <group>
       {billboardAds.map((ad, i) => {
         const building = top10[i];
         if (!building) return null;
+        const loginLower = building.login.toLowerCase();
+        const isDimmed = !!focusedLower && loginLower !== focusedLower && loginLower !== focusedBLower;
         return (
-          <AdBillboard
-            key={ad.id}
-            ad={ad}
-            building={building}
-            onAdClick={onAdClick}
-            meshRef={(el) => {
-              if (el) meshRefs.current.set(ad.id, el);
-              else meshRefs.current.delete(ad.id);
-            }}
-          />
+          <group key={ad.id} visible={!isDimmed}>
+            <AdBillboard
+              ad={ad}
+              building={building}
+              onAdClick={onAdClick}
+              meshRef={(el) => {
+                if (el) meshRefs.current.set(ad.id, el);
+                else meshRefs.current.delete(ad.id);
+              }}
+            />
+          </group>
         );
       })}
       {rooftopSignAds.map((ad, i) => {
         const building = top10[i];
         if (!building) return null;
+        const loginLower = building.login.toLowerCase();
+        const isDimmed = !!focusedLower && loginLower !== focusedLower && loginLower !== focusedBLower;
         return (
-          <AdRooftopSign
-            key={ad.id}
-            ad={ad}
-            building={building}
-            onAdClick={onAdClick}
-            meshRef={(el) => {
-              if (el) meshRefs.current.set(ad.id, el);
-              else meshRefs.current.delete(ad.id);
-            }}
-          />
+          <group key={ad.id} visible={!isDimmed}>
+            <AdRooftopSign
+              ad={ad}
+              building={building}
+              onAdClick={onAdClick}
+              meshRef={(el) => {
+                if (el) meshRefs.current.set(ad.id, el);
+                else meshRefs.current.delete(ad.id);
+              }}
+            />
+          </group>
         );
       })}
       {ledWrapAds.map((ad, i) => {
         const building = top10[i];
         if (!building) return null;
+        const loginLower = building.login.toLowerCase();
+        const isDimmed = !!focusedLower && loginLower !== focusedLower && loginLower !== focusedBLower;
         return (
-          <AdLedWrap
-            key={ad.id}
-            ad={ad}
-            building={building}
-            onAdClick={onAdClick}
-            meshRef={(el) => {
-              if (el) meshRefs.current.set(ad.id, el);
-              else meshRefs.current.delete(ad.id);
-            }}
-          />
+          <group key={ad.id} visible={!isDimmed}>
+            <AdLedWrap
+              ad={ad}
+              building={building}
+              onAdClick={onAdClick}
+              meshRef={(el) => {
+                if (el) meshRefs.current.set(ad.id, el);
+                else meshRefs.current.delete(ad.id);
+              }}
+            />
+          </group>
         );
       })}
       <ViewabilityTracker meshRefs={meshRefs} onAdViewed={onAdViewed} />

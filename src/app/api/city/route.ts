@@ -23,8 +23,9 @@ export async function GET(request: Request) {
     sb.from("city_stats").select("*").eq("id", 1).single(),
   ]);
 
-  const devs = devsResult.data ?? [];
-  const devIds = devs.map((d) => d.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const devs = (devsResult.data ?? []) as Record<string, any>[];
+  const devIds = devs.map((d: Record<string, any>) => d.id);
 
   if (devIds.length === 0) {
     return NextResponse.json(
@@ -36,8 +37,8 @@ export async function GET(request: Request) {
     );
   }
 
-  // Round 2: purchases + customizations + achievements in parallel
-  const [purchasesResult, giftPurchasesResult, customizationsResult, achievementsResult] = await Promise.all([
+  // Round 2: purchases + customizations + achievements + raid tags in parallel
+  const [purchasesResult, giftPurchasesResult, customizationsResult, achievementsResult, raidTagsResult] = await Promise.all([
     sb
       .from("purchases")
       .select("developer_id, item_id")
@@ -58,6 +59,11 @@ export async function GET(request: Request) {
       .from("developer_achievements")
       .select("developer_id, achievement_id")
       .in("developer_id", devIds),
+    sb
+      .from("raid_tags")
+      .select("building_id, attacker_login, tag_style, expires_at")
+      .in("building_id", devIds)
+      .eq("active", true),
   ]);
 
   // Build owned items map (direct purchases + received gifts)
@@ -104,6 +110,16 @@ export async function GET(request: Request) {
     achievementsMap[row.developer_id].push(row.achievement_id);
   }
 
+  // Build raid tags map (1 active tag per building)
+  const raidTagMap: Record<number, { attacker_login: string; tag_style: string; expires_at: string }> = {};
+  for (const row of raidTagsResult.data ?? []) {
+    raidTagMap[row.building_id] = {
+      attacker_login: row.attacker_login,
+      tag_style: row.tag_style,
+      expires_at: row.expires_at,
+    };
+  }
+
   // Merge everything
   const developersWithItems = devs.map((dev) => ({
     ...dev,
@@ -115,6 +131,11 @@ export async function GET(request: Request) {
     achievements: achievementsMap[dev.id] ?? [],
     loadout: loadoutMap[dev.id] ?? null,
     app_streak: dev.app_streak ?? 0,
+    raid_xp: dev.raid_xp ?? 0,
+    current_week_contributions: dev.current_week_contributions ?? 0,
+    current_week_kudos_given: dev.current_week_kudos_given ?? 0,
+    current_week_kudos_received: dev.current_week_kudos_received ?? 0,
+    active_raid_tag: raidTagMap[dev.id] ?? null,
   }));
 
   return NextResponse.json(

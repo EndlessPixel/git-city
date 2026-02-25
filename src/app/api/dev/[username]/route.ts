@@ -57,6 +57,7 @@ interface ExpandedGitHubData {
   current_streak: number;
   longest_streak: number;
   active_days_last_year: number;
+  current_week_contributions: number;
 }
 
 function buildYearAliases(): string {
@@ -185,6 +186,21 @@ async function fetchExpandedGitHubData(login: string): Promise<ExpandedGitHubDat
     const weeks = currentCollection?.contributionCalendar?.weeks ?? [];
     const streaks = computeStreaks(weeks);
 
+    // Weekly contributions (ISO week: Monday-based)
+    const now = new Date();
+    const isoWeekStart = new Date(now);
+    const dayOfWeek = now.getDay();
+    isoWeekStart.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    isoWeekStart.setHours(0, 0, 0, 0);
+    let current_week_contributions = 0;
+    for (const week of weeks) {
+      for (const day of week.contributionDays ?? []) {
+        if (new Date(day.date) >= isoWeekStart) {
+          current_week_contributions += day.contributionCount;
+        }
+      }
+    }
+
     return {
       contributions,
       contributions_total,
@@ -198,6 +214,7 @@ async function fetchExpandedGitHubData(login: string): Promise<ExpandedGitHubDat
       organizations_count: user.organizations?.totalCount ?? 0,
       account_created_at: user.createdAt ?? null,
       ...streaks,
+      current_week_contributions,
     };
   } catch {
     return null;
@@ -392,6 +409,7 @@ export async function GET(
         longest_streak: expanded.longest_streak,
         active_days_last_year: expanded.active_days_last_year,
         language_diversity: uniqueLanguages.size,
+        current_week_contributions: expanded.current_week_contributions,
       } : {}),
     };
 

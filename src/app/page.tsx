@@ -20,6 +20,9 @@ import ActivityPanel from "@/components/ActivityPanel";
 import LofiRadio from "@/components/LofiRadio";
 import { ITEM_NAMES, ITEM_EMOJIS } from "@/lib/zones";
 import { useStreakCheckin } from "@/lib/useStreakCheckin";
+import { useRaidSequence } from "@/lib/useRaidSequence";
+import RaidPreviewModal from "@/components/RaidPreviewModal";
+import RaidOverlay from "@/components/RaidOverlay";
 import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent } from "@/lib/skyAds";
 import { track } from "@vercel/analytics";
 import {
@@ -359,6 +362,7 @@ function HomeContent() {
     raw?: string;
   } | null>(null);
   const [flyMode, setFlyMode] = useState(false);
+  const [flyVehicle, setFlyVehicle] = useState<string>("airplane");
   const [introMode, setIntroMode] = useState(false);
   const [introPhase, setIntroPhase] = useState(-1); // -1 = not started, 0-3 = text phases, 4 = done
   const [exploreMode, setExploreMode] = useState(false);
@@ -400,6 +404,9 @@ function HomeContent() {
   const [skyAds, setSkyAds] = useState<import("@/lib/skyAds").SkyAd[]>(DEFAULT_SKY_ADS);
   const [gitcPrice, setGitcPrice] = useState<{ priceUsd: string; change24h: number } | null>(null);
   const [caCopied, setCaCopied] = useState(false);
+
+  // Raid system
+  const [raidState, raidActions] = useRaidSequence();
 
   // Fetch ads from DB (fallback to DEFAULT_SKY_ADS on error)
   useEffect(() => {
@@ -474,6 +481,21 @@ function HomeContent() {
     session?.user?.user_metadata?.preferred_username ??
     ""
   ).toLowerCase();
+
+  // Fetch fly vehicle from raid loadout (on login + when returning from shop tab)
+  useEffect(() => {
+    if (!session) return;
+    const fetchVehicle = () => {
+      fetch("/api/raid/loadout")
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data?.vehicle) setFlyVehicle(data.vehicle); })
+        .catch(() => {});
+    };
+    fetchVehicle();
+    const onVisible = () => { if (!document.hidden) fetchVehicle(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [session]);
 
   // Save ?ref= to localStorage (7-day expiry)
   useEffect(() => {
@@ -623,9 +645,22 @@ function HomeContent() {
   // Outside fly mode: compare → share modal → profile card → focus → explore mode
   useEffect(() => {
     if (flyMode && !selectedBuilding) return;
-    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed && !giftModalOpen && !comparePair && !compareBuilding) return;
+    if (!flyMode && !exploreMode && !focusedBuilding && !shareData && !selectedBuilding && !giftClaimed && !giftModalOpen && !comparePair && !compareBuilding && raidState.phase === "idle") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Escape") {
+        // Raid takes priority
+        if (raidState.phase !== "idle") {
+          if (raidState.phase === "preview") {
+            raidActions.exitRaid();
+          } else if (raidState.phase === "flight" || raidState.phase === "attack") {
+            raidActions.skipToShare();
+          } else if (raidState.phase === "share") {
+            raidActions.exitRaid();
+          } else {
+            raidActions.exitRaid();
+          }
+          return;
+        }
         if (flyMode && selectedBuilding) {
           setSelectedBuilding(null);
           setFocusedBuilding(null);
@@ -653,7 +688,7 @@ function HomeContent() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed, giftModalOpen, comparePair, compareBuilding]);
+  }, [flyMode, exploreMode, focusedBuilding, shareData, selectedBuilding, giftClaimed, giftModalOpen, comparePair, compareBuilding, raidState.phase, raidActions]);
 
   const reloadCity = useCallback(async (bustCache = false) => {
     const cacheBust = bustCache ? `&_t=${Date.now()}` : "";
@@ -1046,6 +1081,7 @@ function HomeContent() {
         river={river}
         bridges={bridges}
         flyMode={flyMode}
+        flyVehicle={flyVehicle}
         onExitFly={() => { setFlyMode(false); setFlyPaused(false); }}
         themeIndex={themeIndex}
         onHud={(s, a) => setHud({ speed: s, altitude: a })}
@@ -1070,6 +1106,11 @@ function HomeContent() {
         introMode={introMode}
         onIntroEnd={endIntro}
         onFocusInfo={() => {}}
+        raidPhase={raidState.phase}
+        raidData={raidState.raidData}
+        raidAttacker={raidState.attackerBuilding}
+        raidDefender={raidState.defenderBuilding}
+        onRaidPhaseComplete={raidActions.onPhaseComplete}
         onBuildingClick={(b) => {
           trackBuildingClicked(b.login);
           // Compare pick mode: clicking a second building completes the pair
@@ -1655,7 +1696,7 @@ function HomeContent() {
 
       {/* ─── Building Profile Card ─── */}
       {/* Desktop: right edge, vertically centered. Mobile: bottom sheet, centered. */}
-      {selectedBuilding && (!flyMode || flyPaused) && !comparePair && (
+      {selectedBuilding && (!flyMode || flyPaused) && !comparePair && raidState.phase === "idle" && (
         <>
           {/* Nav hints — only on desktop, bottom-right */}
           <div className="pointer-events-none fixed bottom-6 right-6 z-30 hidden text-right text-[9px] leading-loose text-muted sm:block">
@@ -1713,6 +1754,11 @@ function HomeContent() {
                     )}
                   </div>
                   <p className="truncate text-[10px] text-muted">@{selectedBuilding.login}</p>
+                  {selectedBuilding.active_raid_tag && (
+                    <p className="text-[8px] text-red-400">
+                      Raided by @{selectedBuilding.active_raid_tag.attacker_login}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1820,6 +1866,21 @@ function HomeContent() {
                     className="btn-press mt-1.5 w-full border-[2px] border-border py-1.5 text-[9px] text-cream transition-colors hover:border-border-light"
                   >
                     Send Gift
+                  </button>
+                  {/* Raid button */}
+                  {raidState.phase === "idle" && raidState.error && (
+                    <p className="mt-1.5 text-center text-[10px] text-red-400">{raidState.error}</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (authLogin && selectedBuilding) {
+                        raidActions.startPreview(selectedBuilding.login, buildings, authLogin);
+                      }
+                    }}
+                    disabled={raidState.loading}
+                    className="btn-press mt-1.5 w-full border-[3px] border-red-500/60 px-4 py-2 text-xs text-red-400 transition-colors hover:bg-red-500/10"
+                  >
+                    {raidState.loading ? "Loading..." : "RAID"}
                   </button>
                 </div>
               )}
@@ -2417,7 +2478,7 @@ function HomeContent() {
             <span className="text-cream">{theme.name}</span>
             <span className="text-dim">{themeIndex + 1}/{THEMES.length}</span>
           </button>
-          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
+          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} raidMode={raidState.phase !== "idle" && raidState.phase !== "preview"} />
           <button
             onClick={replayIntro}
             className="btn-press flex items-center gap-1 border-[3px] border-border bg-bg/70 px-2 py-1 text-[10px] backdrop-blur-sm transition-colors hover:border-border-light"
@@ -2430,7 +2491,7 @@ function HomeContent() {
       )}
       {flyMode && (
         <div className="pointer-events-auto fixed bottom-4 left-3 z-[25] sm:left-4">
-          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} />
+          <LofiRadio accent={theme.accent} shadow={theme.shadow} flyMode={flyMode} raidMode={raidState.phase !== "idle" && raidState.phase !== "preview"} />
         </div>
       )}
 
@@ -2632,6 +2693,27 @@ function HomeContent() {
       )}
 
       {/* Mark streak achievements as seen on check-in */}
+
+      {/* Raid Preview Modal */}
+      {raidState.phase === "preview" && raidState.previewData && (
+        <RaidPreviewModal
+          preview={raidState.previewData}
+          loading={raidState.loading}
+          error={raidState.error}
+          onRaid={(boostPurchaseId, vehicleId) => raidActions.executeRaid(boostPurchaseId, vehicleId)}
+          onCancel={raidActions.exitRaid}
+        />
+      )}
+
+      {/* Raid Overlay (cinema bars + text + share) */}
+      {raidState.phase !== "idle" && raidState.phase !== "preview" && (
+        <RaidOverlay
+          phase={raidState.phase}
+          raidData={raidState.raidData}
+          onSkip={raidActions.skipToShare}
+          onExit={raidActions.exitRaid}
+        />
+      )}
     </main>
   );
 }

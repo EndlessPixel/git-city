@@ -6,6 +6,7 @@ import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
 import { ClaimedGlow, BuildingItemEffects } from "./Building3D";
 import { StreakFlame } from "./BuildingEffects";
+import RaidTag3D from "./RaidTag3D";
 
 // ─── Spatial Grid (same structure as CityScene) ────────────────
 
@@ -47,6 +48,8 @@ interface EffectsLayerProps {
   colors: BuildingColors;
   accentColor: string;
   focusedBuilding?: string | null;
+  focusedBuildingB?: string | null;
+  hideEffectsFor?: string | null;
   introMode?: boolean;
   flyMode?: boolean;
 }
@@ -57,6 +60,8 @@ export default function EffectsLayer({
   colors,
   accentColor,
   focusedBuilding,
+  focusedBuildingB,
+  hideEffectsFor,
   introMode,
   flyMode,
 }: EffectsLayerProps) {
@@ -65,6 +70,8 @@ export default function EffectsLayer({
   const [activeIndices, setActiveIndices] = useState<number[]>([]);
 
   const focusedLower = focusedBuilding?.toLowerCase() ?? null;
+  const focusedBLower = focusedBuildingB?.toLowerCase() ?? null;
+  const hideLower = hideEffectsFor?.toLowerCase() ?? null;
   const loginToIdx = useMemo(() => {
     const map = new Map<string, number>();
     for (let i = 0; i < buildings.length; i++) {
@@ -74,7 +81,7 @@ export default function EffectsLayer({
   }, [buildings]);
 
   useFrame(({ camera, clock }) => {
-    if (introMode || flyMode) return; // Skip effects during intro/flight
+    if (introMode) return; // Skip effects during intro
 
     const elapsed = clock.elapsedTime;
     if (elapsed - lastUpdate.current < EFFECTS_UPDATE_INTERVAL) return;
@@ -93,7 +100,7 @@ export default function EffectsLayer({
       const b = buildings[idx];
 
       // Only buildings that have something to render
-      const hasEffects = b.claimed || (b.owned_items && b.owned_items.length > 0) || (b.app_streak > 0);
+      const hasEffects = b.claimed || (b.owned_items && b.owned_items.length > 0) || (b.app_streak > 0) || !!b.active_raid_tag;
       if (!hasEffects) continue;
 
       const dx = cx - b.position[0];
@@ -106,9 +113,13 @@ export default function EffectsLayer({
       }
     }
 
-    // Always include focused building
+    // Always include focused buildings
     if (focusedLower) {
       const fi = loginToIdx.get(focusedLower);
+      if (fi !== undefined) newSet.add(fi);
+    }
+    if (focusedBLower) {
+      const fi = loginToIdx.get(focusedBLower);
       if (fi !== undefined) newSet.add(fi);
     }
 
@@ -129,16 +140,19 @@ export default function EffectsLayer({
     }
   });
 
-  if (introMode || flyMode) return null;
+  if (introMode) return null;
 
   return (
     <>
       {activeIndices.map((idx) => {
         const b = buildings[idx];
         if (!b) return null;
-        const isFocused = focusedLower === b.login.toLowerCase();
+        const loginLower = b.login.toLowerCase();
+        if (hideLower === loginLower) return null;
+        const isFocused = focusedLower === loginLower || focusedBLower === loginLower;
+        const isDimmed = !!focusedLower && !isFocused;
         return (
-          <group key={b.login} position={[b.position[0], 0, b.position[2]]}>
+          <group key={b.login} position={[b.position[0], 0, b.position[2]]} visible={!isDimmed}>
             {b.claimed && (
               <ClaimedGlow height={b.height} width={b.width} depth={b.depth} />
             )}
@@ -149,6 +163,15 @@ export default function EffectsLayer({
             />
             {b.app_streak > 0 && (
               <StreakFlame height={b.height} width={b.width} depth={b.depth} streakDays={b.app_streak} color={accentColor} />
+            )}
+            {b.active_raid_tag && (
+              <RaidTag3D
+                width={b.width}
+                height={b.height}
+                depth={b.depth}
+                attackerLogin={b.active_raid_tag.attacker_login}
+                tagStyle={b.active_raid_tag.tag_style}
+              />
             )}
           </group>
         );

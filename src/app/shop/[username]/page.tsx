@@ -105,7 +105,7 @@ export default async function ShopPage({ params, searchParams }: Props) {
 
   const sb = getSupabaseAdmin();
 
-  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult, topStarsResult, achievementsResult, loadoutResult] = await Promise.all([
+  const [items, ownedItems, customizationsResult, billboardPurchasesResult, topDevResult, topStarsResult, achievementsResult, loadoutResult, raidLoadoutResult] = await Promise.all([
     getActiveItems(),
     getOwnedItems(dev.id),
     sb
@@ -140,6 +140,12 @@ export default async function ShopPage({ params, searchParams }: Props) {
       .select("config")
       .eq("developer_id", dev.id)
       .eq("item_id", "loadout")
+      .maybeSingle(),
+    sb
+      .from("developer_customizations")
+      .select("config")
+      .eq("developer_id", dev.id)
+      .eq("item_id", "raid_loadout")
       .maybeSingle(),
   ]);
 
@@ -221,6 +227,7 @@ export default async function ShopPage({ params, searchParams }: Props) {
           buildingDims={buildingDims}
           achievements={achievements}
           initialLoadout={initialLoadout}
+          initialRaidLoadout={(raidLoadoutResult?.data?.config as { vehicle: string; tag: string }) ?? null}
           purchasedItem={purchasedItem ?? null}
           giftedItem={giftedItem ?? null}
           giftedTo={giftedTo ?? null}

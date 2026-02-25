@@ -116,6 +116,26 @@ const fragmentShader = /* glsl */ `
     float emissiveMult = mix(1.0, mix(uDimEmissive, 1.0, isFocused), hasFocus);
     color *= emissiveMult * dimFactor;
 
+    // Screen-door transparency: discard pixels on non-focused buildings
+    // Uses 4x4 Bayer dithering for smooth look
+    float isUnfocused = hasFocus * (1.0 - isFocused);
+    if (isUnfocused > 0.5) {
+      int x = int(mod(gl_FragCoord.x, 4.0));
+      int y = int(mod(gl_FragCoord.y, 4.0));
+      int idx = x + y * 4;
+      // 4x4 Bayer matrix thresholds (normalized 0-1)
+      float bayer;
+      if (idx == 0) bayer = 0.0;    else if (idx == 1) bayer = 0.5;
+      else if (idx == 2) bayer = 0.125; else if (idx == 3) bayer = 0.625;
+      else if (idx == 4) bayer = 0.75;  else if (idx == 5) bayer = 0.25;
+      else if (idx == 6) bayer = 0.875; else if (idx == 7) bayer = 0.375;
+      else if (idx == 8) bayer = 0.1875; else if (idx == 9) bayer = 0.6875;
+      else if (idx == 10) bayer = 0.0625; else if (idx == 11) bayer = 0.5625;
+      else if (idx == 12) bayer = 0.9375; else if (idx == 13) bayer = 0.4375;
+      else if (idx == 14) bayer = 0.8125; else bayer = 0.3125;
+      if (bayer > uDimOpacity) discard;
+    }
+
     // Linear fog
     float depth = length(vViewPos);
     float fogFactor = smoothstep(uFogNear, uFogFar, depth);
@@ -141,6 +161,8 @@ interface InstancedBuildingsProps {
   focusedBuildingB?: string | null;
   introMode?: boolean;
   onBuildingClick?: (building: CityBuilding) => void;
+  dimOpacity?: number;
+  dimEmissive?: number;
 }
 
 // Rise animation tracking
@@ -160,6 +182,8 @@ export default function InstancedBuildings({
   focusedBuildingB,
   introMode,
   onBuildingClick,
+  dimOpacity,
+  dimEmissive,
 }: InstancedBuildingsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = buildings.length;
@@ -188,8 +212,8 @@ export default function InstancedBuildings({
         uFogFar: { value: 3500 },
         uFocusedId: { value: -1.0 },
         uFocusedIdB: { value: -1.0 },
-        uDimOpacity: { value: 0.55 },
-        uDimEmissive: { value: 0.25 },
+        uDimOpacity: { value: 0.6 },
+        uDimEmissive: { value: 0.5 },
       },
       vertexShader,
       fragmentShader,
@@ -435,8 +459,9 @@ export default function InstancedBuildings({
       raycasterRef.current.setFromCamera(pointerNDC.current, camera);
       const hits: THREE.Intersection[] = [];
       mesh.raycast(raycasterRef.current, hits);
-      if (hits.length > 0 && hits[0].instanceId !== undefined) {
-        return hits[0].instanceId;
+      if (hits.length > 0) {
+        hits.sort((a, b) => a.distance - b.distance);
+        if (hits[0].instanceId !== undefined) return hits[0].instanceId;
       }
       return null;
     };

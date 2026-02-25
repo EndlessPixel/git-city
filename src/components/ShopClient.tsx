@@ -11,6 +11,9 @@ import {
   ITEM_EMOJIS,
   FACES_ITEMS,
   ACHIEVEMENT_ITEMS,
+  RAID_VEHICLE_ITEMS,
+  RAID_TAG_ITEMS,
+  RAID_BOOST_ITEMS,
 } from "@/lib/zones";
 import {
   trackShopPageView,
@@ -25,6 +28,7 @@ import {
 const FREE_CLAIM_ITEM = "flag";
 
 const ShopPreview = dynamic(() => import("./ShopPreview"), { ssr: false });
+const RaidVehiclePreview = dynamic(() => import("./RaidVehiclePreview"), { ssr: false });
 
 export interface BuildingDims {
   width: number;
@@ -49,6 +53,7 @@ interface Props {
   buildingDims: BuildingDims;
   achievements?: string[];
   initialLoadout?: Loadout | null;
+  initialRaidLoadout?: { vehicle: string; tag: string } | null;
   purchasedItem?: string | null;
   giftedItem?: string | null;
   giftedTo?: string | null;
@@ -586,6 +591,7 @@ export default function ShopClient({
   buildingDims,
   achievements = [],
   initialLoadout = null,
+  initialRaidLoadout = null,
   purchasedItem = null,
   giftedItem = null,
   giftedTo = null,
@@ -598,6 +604,11 @@ export default function ShopClient({
   const loadoutRef = useRef(loadout);
   loadoutRef.current = loadout;
 
+  // Raid loadout state
+  const [raidLoadout, setRaidLoadout] = useState<{ vehicle: string; tag: string }>(
+    initialRaidLoadout ?? { vehicle: "airplane", tag: "default" }
+  );
+
   const [owned, setOwned] = useState<string[]>(ownedItems);
   const [freezeCount, setFreezeCount] = useState(streakFreezesAvailable);
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
@@ -607,6 +618,10 @@ export default function ShopClient({
   const [hasChanges, setHasChanges] = useState(false);
   const [highlightItem, setHighlightItem] = useState<string | null>(null);
   const [confirmBuyItem, setConfirmBuyItem] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"building" | "raid">(() => {
+    if (purchasedItem && [...RAID_VEHICLE_ITEMS, ...RAID_TAG_ITEMS, ...RAID_BOOST_ITEMS].includes(purchasedItem)) return "raid";
+    return "building";
+  });
 
   const [pixModal, setPixModal] = useState<PixModalData | null>(null);
   const [customColor, setCustomColor] = useState<string | null>(initialCustomColor);
@@ -625,13 +640,20 @@ export default function ShopClient({
     trackShopPageView();
   }, []);
 
-  // Post-purchase: show toast + auto-equip if zone is empty
+  // Post-purchase: show toast + auto-equip if zone is empty + switch tab
+  const ALL_RAID_ITEMS = [...RAID_VEHICLE_ITEMS, ...RAID_TAG_ITEMS, ...RAID_BOOST_ITEMS];
   useEffect(() => {
     if (!purchasedItem) return;
     const shopItem = items.find((i) => i.id === purchasedItem);
     trackPurchaseCompleted(purchasedItem, shopItem?.price_usd_cents ?? 0, "stripe");
     // Clear toast after 5s
     const timer = setTimeout(() => setPurchaseToast(null), 5000);
+    // Switch to correct tab
+    if (ALL_RAID_ITEMS.includes(purchasedItem)) {
+      setActiveTab("raid");
+    } else {
+      setActiveTab("building");
+    }
     // Streak freeze: increment local count
     if (purchasedItem === "streak_freeze") {
       setFreezeCount((prev) => Math.min(prev + 1, 2));
@@ -795,6 +817,17 @@ export default function ShopClient({
     }
   }, [buyingItem]);
 
+  const handleSetRaidVehicle = useCallback(async (vehicleId: string) => {
+    const res = await fetch("/api/raid/loadout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vehicle: vehicleId, tag: raidLoadout.tag }),
+    });
+    if (res.ok) {
+      setRaidLoadout((prev) => ({ ...prev, vehicle: vehicleId }));
+    }
+  }, [raidLoadout.tag]);
+
   const checkout = useCallback(
     async (itemId: string) => {
       if (buyingItem) return;
@@ -930,17 +963,28 @@ export default function ShopClient({
   return (
     <>
       {/* Purchase success toast */}
-      {purchaseToast && (
-        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2">
-          <div
-            className="flex items-center gap-2 border-[3px] px-5 py-2.5 text-[10px] text-bg"
-            style={{ backgroundColor: ACCENT, borderColor: SHADOW }}
-          >
-            <span className="text-base">{ITEM_EMOJIS[purchaseToast] ?? "🎉"}</span>
-            <span>{ITEM_NAMES[purchaseToast] ?? purchaseToast} purchased! Equip it below.</span>
+      {purchaseToast && (() => {
+        const isRaidItem = ALL_RAID_ITEMS.includes(purchaseToast);
+        const isConsumable = purchaseToast === "streak_freeze";
+        const toastMsg = isConsumable
+          ? "Added to your inventory!"
+          : isRaidItem
+            ? "Unlocked! Ready for your next raid."
+            : "Purchased! Equip it below.";
+        const toastBg = isRaidItem ? "#ff5555" : ACCENT;
+        const toastBorder = isRaidItem ? "#aa2222" : SHADOW;
+        return (
+          <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2">
+            <div
+              className="flex items-center gap-2 border-[3px] px-5 py-2.5 text-[10px] text-bg"
+              style={{ backgroundColor: toastBg, borderColor: toastBorder }}
+            >
+              <span className="text-base">{ITEM_EMOJIS[purchaseToast] ?? "🎉"}</span>
+              <span>{ITEM_NAMES[purchaseToast] ?? purchaseToast} {toastMsg}</span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Gift success toast */}
       {giftToast && (
@@ -981,33 +1025,61 @@ export default function ShopClient({
         </div>
       )}
 
-      {/* Desktop: 2 columns */}
-      <div className="lg:flex lg:gap-6">
-        {/* Left column: Preview (sticky on desktop) */}
-        <div className="lg:w-[420px] lg:shrink-0">
-          <div className="lg:sticky lg:top-6">
-            <ShopPreview
-              loadout={effectiveLoadout}
-              ownedFacesItems={ownedFacesItems}
-              customColor={previewColor ?? customColor}
-              billboardImages={previewBillboardImages ?? billboardImages}
-              buildingDims={buildingDims}
-              highlightItemId={highlightItem}
-            />
-            {/* Save button (desktop, below preview) */}
-            <div className="hidden lg:block mt-4">
-              {saveButton}
-            </div>
-          </div>
-        </div>
+      {/* Tab navigation */}
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setActiveTab("building")}
+          className={`px-5 py-2 text-[11px] border-[2px] transition-colors ${
+            activeTab === "building"
+              ? "bg-bg-card border-cream/20 text-cream"
+              : "border-border text-muted hover:text-cream hover:border-border-light"
+          }`}
+        >
+          BUILDING
+        </button>
+        <button
+          onClick={() => setActiveTab("raid")}
+          className={`px-5 py-2 text-[11px] border-[2px] transition-colors ${
+            activeTab === "raid"
+              ? "bg-bg-card border-cream/20"
+              : "border-border text-muted hover:text-cream hover:border-border-light"
+          }`}
+          style={{ color: activeTab === "raid" ? "#ff5555" : undefined }}
+        >
+          RAID
+        </button>
+      </div>
 
-        {/* Right column: Zones */}
-        <div className="mt-5 lg:mt-0 min-w-0 flex-1 space-y-5">
+      {/* ─── Building Tab ─── */}
+      {activeTab === "building" && (
+        <>
+          <div className="lg:flex lg:gap-6">
+            {/* Left column: Preview (sticky on desktop) */}
+            <div className="lg:w-[360px] lg:shrink-0">
+              <div className="lg:sticky lg:top-6">
+                <ShopPreview
+                  loadout={effectiveLoadout}
+                  ownedFacesItems={ownedFacesItems}
+                  customColor={previewColor ?? customColor}
+                  billboardImages={previewBillboardImages ?? billboardImages}
+                  buildingDims={buildingDims}
+                  highlightItemId={highlightItem}
+                />
+                {/* Save button (desktop, below preview) */}
+                <div className="hidden lg:block mt-4">
+                  {saveButton}
+                </div>
+              </div>
+            </div>
+
+            {/* Right column: Zones */}
+            <div className="mt-5 lg:mt-0 min-w-0 flex-1 space-y-5">
           {/* Zone sections: CROWN, ROOF, AURA */}
           {(Object.entries(ZONE_ITEMS) as [string, string[]][]).map(([zone, zoneItemIds]) => {
             const zoneKey = zone as keyof Loadout;
             const equippedId = effectiveLoadout[zoneKey];
             const equippedName = equippedId ? (ITEM_NAMES[equippedId] ?? equippedId) : "None";
+            const ownedCount = zoneItemIds.filter((id) => owned.includes(id)).length;
 
             return (
               <div key={zone} className="border-[3px] border-border bg-bg-raised p-4">
@@ -1017,12 +1089,12 @@ export default function ShopClient({
                     {ZONE_LABELS[zone] ?? zone}
                   </h3>
                   <span className="text-[9px] text-muted normal-case">
-                    equipped: {equippedName}
+                    {ownedCount}/{zoneItemIds.length} owned · equipped: {equippedName}
                   </span>
                 </div>
 
                 {/* Item cards grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {zoneItemIds.map((itemId) => {
                     const isOwned = owned.includes(itemId);
                     const isEquipped = equippedId === itemId;
@@ -1059,6 +1131,7 @@ export default function ShopClient({
 
                     // Click handler
                     const handleClick = () => {
+                      setHighlightItem(itemId);
                       if (isEquipped) {
                         handleUnequip(zoneKey);
                       } else if (isOwned) {
@@ -1087,12 +1160,12 @@ export default function ShopClient({
                             "hover:border-border-light",
                           ].join(" ")}
                         >
-                          <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
-                          <span className="mt-1 text-[9px] text-cream truncate w-full text-center">
+                          <span className="text-3xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                          <span className="mt-1 text-[10px] text-cream truncate w-full text-center">
                             {ITEM_NAMES[itemId] ?? itemId}
                           </span>
                           <span
-                            className="mt-0.5 text-[8px]"
+                            className={`mt-0.5 ${badge.startsWith("$") ? "text-[10px] font-bold" : "text-[9px]"}`}
                             style={{ color: badgeColor }}
                           >
                             {isBuying ? "..." : badge}
@@ -1141,12 +1214,12 @@ export default function ShopClient({
                 Faces
               </h3>
               <span className="text-[9px] text-muted normal-case">
-                always active if owned
+                {owned.filter((id) => FACES_ITEMS.includes(id)).length}/{FACES_ITEMS.length} owned · always active if owned
               </span>
             </div>
 
             {/* Faces item cards */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
               {FACES_ITEMS.map((itemId) => {
                 const isOwned = owned.includes(itemId);
                 const shopItem = getShopItem(itemId);
@@ -1178,6 +1251,7 @@ export default function ShopClient({
                 const isFacesOwned = isOwned || (isBillboard && billboardSlots > 0);
 
                 const handleClick = () => {
+                  setHighlightItem(itemId);
                   if (isBillboard && isFacesOwned) {
                     // Already owned, scroll to upload — no action needed on card
                     return;
@@ -1202,12 +1276,12 @@ export default function ShopClient({
                         "hover:border-border-light",
                       ].join(" ")}
                     >
-                      <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
-                      <span className="mt-1 text-[9px] text-cream truncate w-full text-center">
+                      <span className="text-3xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                      <span className="mt-1 text-[10px] text-cream truncate w-full text-center">
                         {ITEM_NAMES[itemId] ?? itemId}
                       </span>
                       <span
-                        className="mt-0.5 text-[8px]"
+                        className={`mt-0.5 ${badge.startsWith("$") ? "text-[10px] font-bold" : "text-[9px]"}`}
                         style={{ color: badgeColor }}
                       >
                         {isBuying ? "..." : badge}
@@ -1315,7 +1389,7 @@ export default function ShopClient({
                     one-time use items
                   </span>
                 </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <div className="relative" data-buy-popover>
                     <button
                       onClick={() => {
@@ -1333,11 +1407,11 @@ export default function ShopClient({
                         "hover:border-border-light",
                       ].join(" ")}
                     >
-                      <span className="text-2xl">{ITEM_EMOJIS.streak_freeze}</span>
-                      <span className="mt-1 text-[9px] text-cream truncate w-full text-center">
+                      <span className="text-3xl">{ITEM_EMOJIS.streak_freeze}</span>
+                      <span className="mt-1 text-[10px] text-cream truncate w-full text-center">
                         {ITEM_NAMES.streak_freeze}
                       </span>
-                      <span className="mt-0.5 text-[8px]" style={{ color: atMax ? "#ff4444" : "#a0a0b0" }}>
+                      <span className="mt-0.5 text-[9px]" style={{ color: atMax ? "#ff4444" : "#a0a0b0" }}>
                         {isBuying ? "..." : atMax ? "MAX (2/2)" : `${freezeCount}/2 stored`}
                       </span>
                     </button>
@@ -1381,13 +1455,253 @@ export default function ShopClient({
           <p className="text-center text-[10px] text-dim normal-case">
             Payment via Stripe
           </p>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* Mobile: Save sticky bottom */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-bg border-t-[3px] border-border lg:hidden">
-        {saveButton}
-      </div>
+          {/* Mobile: Save sticky bottom */}
+          <div className="fixed bottom-0 left-0 right-0 z-40 p-3 bg-bg border-t-[3px] border-border lg:hidden">
+            {saveButton}
+          </div>
+        </>
+      )}
+
+      {/* ─── Raid Tab ─── */}
+      {activeTab === "raid" && (
+        <div className="max-w-[640px] mx-auto space-y-5">
+          <div className="border-[3px] border-border bg-bg-raised p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm" style={{ color: "#ff5555" }}>
+                Raid
+              </h3>
+              <span className="text-[9px] text-muted normal-case">
+                vehicles, tags & boosts
+              </span>
+            </div>
+
+            {/* --- Vehicles Sub-Section --- */}
+            <p className="mb-1.5 text-[9px] uppercase tracking-wider text-muted">Vehicles</p>
+            <div className="grid grid-cols-2 gap-3 mb-0">
+              {/* Airplane - free default */}
+              <button
+                onClick={() => handleSetRaidVehicle("airplane")}
+                className={[
+                  "w-full overflow-hidden transition-colors border-[2px]",
+                  raidLoadout.vehicle === "airplane"
+                    ? "border-[#39d353] bg-[rgba(57,211,83,0.05)]"
+                    : "border-[#39d353]/40 bg-[rgba(57,211,83,0.02)] hover:border-[#39d353]/70",
+                ].join(" ")}
+              >
+                <div className="h-24 bg-black/20 relative">
+                  <RaidVehiclePreview vehicleType="airplane" />
+                  {raidLoadout.vehicle === "airplane" && (
+                    <span className="absolute top-1 right-1 text-[8px] font-bold px-1 bg-[#39d353]/20 text-[#39d353] border border-[#39d353]/30">ACTIVE</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <span className="text-[10px] text-cream">✈️ Airplane</span>
+                  <span className="text-[10px]" style={{ color: ACCENT }}>✓</span>
+                </div>
+              </button>
+
+              {RAID_VEHICLE_ITEMS.map((itemId) => {
+                const isOwned = owned.includes(itemId);
+                const isActive = isOwned && raidLoadout.vehicle === itemId;
+                const shopItem = getShopItem(itemId);
+                const isBuying = buyingItem === itemId;
+                const isConfirming = confirmBuyItem === itemId;
+
+                return (
+                  <div key={itemId} className="relative" data-buy-popover>
+                    <button
+                      onClick={() => {
+                        if (isOwned) {
+                          handleSetRaidVehicle(itemId);
+                          return;
+                        }
+                        if (shopItem && shopItem.price_usd_cents > 0) {
+                          if (!isConfirming) trackShopItemViewed(itemId, "raid", shopItem.price_usd_cents);
+                          setConfirmBuyItem(isConfirming ? null : itemId);
+                        }
+                      }}
+                      disabled={isBuying}
+                      className={[
+                        "w-full overflow-hidden transition-colors",
+                        "border-[2px]",
+                        isOwned
+                          ? isActive
+                            ? "border-[#39d353] bg-[rgba(57,211,83,0.05)]"
+                            : "border-[#39d353]/40 bg-[rgba(57,211,83,0.02)] hover:border-[#39d353]/70"
+                          : isConfirming
+                            ? "border-red-500/60"
+                            : "border-border hover:border-red-500/40",
+                        !isOwned ? "bg-bg-card" : "",
+                      ].join(" ")}
+                    >
+                      <div className="h-24 bg-black/20 relative">
+                        <RaidVehiclePreview vehicleType={itemId} />
+                        {isActive && (
+                          <span className="absolute top-1 right-1 text-[8px] font-bold px-1 bg-[#39d353]/20 text-[#39d353] border border-[#39d353]/30">ACTIVE</span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between px-2 py-1.5">
+                        <span className="text-[10px] text-cream">
+                          {ITEM_EMOJIS[itemId] ?? "?"} {ITEM_NAMES[itemId] ?? itemId}
+                        </span>
+                        {isOwned ? (
+                          <span className="text-[10px]" style={{ color: ACCENT }}>✓</span>
+                        ) : (
+                          <span className="text-[10px] text-muted">
+                            {isBuying ? "..." : shopItem ? formatPrice(shopItem) : ""}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                    {isConfirming && shopItem && (
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 w-36 border-[2px] border-border bg-bg p-2 shadow-lg">
+                        <p className="text-[9px] text-cream text-center mb-1.5">{ITEM_NAMES[itemId]}</p>
+                        <p className="text-[10px] text-center mb-2" style={{ color: "#ff5555" }}>{formatPrice(shopItem)}</p>
+                        <div className="flex gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-[2px] border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <hr className="my-4 border-red-500/20" />
+
+            {/* --- Graffiti Tags Sub-Section --- */}
+            <p className="mb-1.5 text-[9px] uppercase tracking-wider text-muted">Graffiti Tags</p>
+            {(() => {
+              const TAG_COLORS: Record<string, string> = {
+                tag_neon: "#00ffff",
+                tag_fire: "#ff6600",
+                tag_gold: "#ffd700",
+              };
+              return (
+                <div className="grid grid-cols-3 gap-2 mb-0">
+                  {RAID_TAG_ITEMS.map((itemId) => {
+                    const isOwned = owned.includes(itemId);
+                    const shopItem = getShopItem(itemId);
+                    const isBuying = buyingItem === itemId;
+                    const isConfirming = confirmBuyItem === itemId;
+
+                    return (
+                      <div key={itemId} className="relative" data-buy-popover>
+                        <button
+                          onClick={() => {
+                            if (isOwned) return;
+                            if (shopItem && shopItem.price_usd_cents > 0) {
+                              if (!isConfirming) trackShopItemViewed(itemId, "raid", shopItem.price_usd_cents);
+                              setConfirmBuyItem(isConfirming ? null : itemId);
+                            }
+                          }}
+                          disabled={isBuying}
+                          className={[
+                            "relative flex flex-col items-center justify-center p-2 transition-all w-full aspect-square",
+                            "border-[2px]",
+                            isOwned
+                              ? "border-[#39d353] bg-[rgba(57,211,83,0.05)]"
+                              : isConfirming
+                                ? "border-red-500/60"
+                                : "border-border hover:border-red-500/40",
+                            !isOwned ? "bg-bg-card" : "",
+                          ].join(" ")}
+                        >
+                          <div className="absolute top-0 left-0 h-1 w-full" style={{ backgroundColor: TAG_COLORS[itemId] ?? "#fff" }} />
+                          <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                          <span className="mt-1 text-[9px] text-cream truncate w-full text-center">{ITEM_NAMES[itemId] ?? itemId}</span>
+                          {isOwned ? (
+                            <span className="mt-0.5 text-[8px]" style={{ color: ACCENT }}>✓</span>
+                          ) : (
+                            <span className="mt-0.5 text-[8px] text-muted">{isBuying ? "..." : shopItem ? formatPrice(shopItem) : ""}</span>
+                          )}
+                        </button>
+                        {isConfirming && shopItem && (
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 w-36 border-[2px] border-border bg-bg p-2 shadow-lg">
+                            <p className="text-[9px] text-cream text-center mb-1.5">{ITEM_NAMES[itemId]}</p>
+                            <p className="text-[10px] text-center mb-2" style={{ color: "#ff5555" }}>{formatPrice(shopItem)}</p>
+                            <div className="flex gap-1">
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-[2px] border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <hr className="my-4 border-red-500/20" />
+
+            {/* --- Boosts Sub-Section --- */}
+            <p className="mb-1.5 text-[9px] uppercase tracking-wider text-muted">Boosts (consumable)</p>
+            {(() => {
+              const BOOST_BONUSES: Record<string, number> = {
+                raid_boost_small: 5,
+                raid_boost_medium: 10,
+                raid_boost_large: 20,
+              };
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  {RAID_BOOST_ITEMS.map((itemId) => {
+                    const shopItem = getShopItem(itemId);
+                    const isBuying = buyingItem === itemId;
+                    const isConfirming = confirmBuyItem === itemId;
+
+                    return (
+                      <div key={itemId} className="relative" data-buy-popover>
+                        <button
+                          onClick={() => {
+                            if (shopItem && shopItem.price_usd_cents > 0) {
+                              if (!isConfirming) trackShopItemViewed(itemId, "raid", shopItem.price_usd_cents);
+                              setConfirmBuyItem(isConfirming ? null : itemId);
+                            }
+                          }}
+                          disabled={isBuying}
+                          className={[
+                            "relative flex flex-col items-center justify-center p-2 transition-all w-full aspect-square",
+                            "border-dashed border-[2px] border-orange-500/30",
+                            isConfirming ? "border-red-500/60 border-solid" : "",
+                            "bg-bg-card hover:border-orange-500/50",
+                          ].join(" ")}
+                        >
+                          <span className="absolute top-1 right-1 text-[8px] font-bold px-1 bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                            +{BOOST_BONUSES[itemId]} ATK
+                          </span>
+                          <span className="text-2xl">{ITEM_EMOJIS[itemId] ?? "?"}</span>
+                          <span className="mt-1 text-[9px] text-cream truncate w-full text-center">{ITEM_NAMES[itemId] ?? itemId}</span>
+                          <span className="mt-0.5 text-[8px] text-muted">{isBuying ? "..." : shopItem ? formatPrice(shopItem) : ""}</span>
+                        </button>
+                        {isConfirming && shopItem && (
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 w-36 border-[2px] border-border bg-bg p-2 shadow-lg">
+                            <p className="text-[9px] text-cream text-center mb-1.5">{ITEM_NAMES[itemId]}</p>
+                            <p className="text-[10px] text-center mb-2" style={{ color: "#ff5555" }}>{formatPrice(shopItem)}</p>
+                            <div className="flex gap-1">
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-[2px] border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
+                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Payment note */}
+          <p className="text-center text-[10px] text-dim normal-case">
+            Payment via Stripe
+          </p>
+        </div>
+      )}
     </>
   );
 }

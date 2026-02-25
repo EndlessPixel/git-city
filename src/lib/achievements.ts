@@ -47,6 +47,7 @@ interface DevStats {
   gifts_received: number;
   app_streak?: number;
   kudos_streak?: number;
+  raid_xp?: number;
 }
 
 /**
@@ -101,6 +102,8 @@ export async function checkAchievements(
         return (stats.app_streak ?? 0) >= a.threshold;
       case "kudos_streak":
         return (stats.kudos_streak ?? 0) >= a.threshold;
+      case "raid":
+        return (stats.raid_xp ?? 0) >= a.threshold;
       default:
         return false;
     }

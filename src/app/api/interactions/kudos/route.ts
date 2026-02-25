@@ -118,6 +118,17 @@ export async function POST(request: Request) {
       .update({ kudos_streak: newKudosStreak, last_kudos_given_date: today })
       .eq("id", giver.id);
 
+    // Increment weekly kudos counters for raid system
+    // Uses raw SQL via rpc to atomically increment (may not exist pre-migration)
+    try {
+      await admin.rpc("increment_kudos_week", {
+        p_giver_id: giver.id,
+        p_receiver_id: receiver.id,
+      });
+    } catch {
+      // RPC may not exist yet before migration 015
+    }
+
     // Check kudos streak achievements
     await checkAchievements(giver.id, {
       contributions: giver.contributions ?? 0,

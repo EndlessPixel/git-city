@@ -35,7 +35,7 @@ export async function POST() {
   // Fetch developer (must be claimed)
   const { data: dev } = await sb
     .from("developers")
-    .select("id, claimed, contributions, public_repos, total_stars, kudos_count, app_streak, streak_freeze_30d_claimed")
+    .select("id, claimed, contributions, public_repos, total_stars, kudos_count, app_streak, streak_freeze_30d_claimed, last_checkin_date")
     .eq("github_login", githubLogin)
     .single();
 
@@ -125,6 +125,27 @@ export async function POST() {
     .order("given_date", { ascending: false })
     .limit(10);
 
+  // Fetch raids targeting this dev since last checkin (raids table may not exist yet)
+  let raidsSinceLast: { attacker_login: string; success: boolean; created_at: string }[] = [];
+  try {
+    const lastCheckin = dev.last_checkin_date as string | null;
+    const { data: recentRaids } = await sb
+      .from("raids")
+      .select("attacker_id, success, created_at, attacker:developers!raids_attacker_id_fkey(github_login)")
+      .eq("defender_id", dev.id)
+      .gt("created_at", lastCheckin ?? "1970-01-01")
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    raidsSinceLast = (recentRaids ?? []).map((r) => ({
+      attacker_login: (r.attacker as unknown as { github_login: string })?.github_login ?? "unknown",
+      success: r.success,
+      created_at: r.created_at,
+    }));
+  } catch {
+    // raids table may not exist yet
+  }
+
   return NextResponse.json({
     checked_in: checkinResult.checked_in,
     already_today: checkinResult.already_today ?? false,
@@ -134,5 +155,6 @@ export async function POST() {
     new_achievements: newAchievements,
     unseen_count: unseenCount ?? 0,
     kudos_since_last: recentKudos?.length ?? 0,
+    raids_since_last: raidsSinceLast,
   });
 }

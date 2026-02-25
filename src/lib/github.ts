@@ -63,6 +63,11 @@ export interface CityBuilding {
   visit_count: number;
   loadout?: { crown: string | null; roof: string | null; aura: string | null } | null;
   app_streak: number;
+  raid_xp: number;
+  current_week_contributions: number;
+  current_week_kudos_given: number;
+  current_week_kudos_received: number;
+  active_raid_tag?: { attacker_login: string; tag_style: string; expires_at: string } | null;
   position: [number, number, number];
   width: number;
   depth: number;
@@ -390,6 +395,11 @@ export function generateCityLayout(devs: DeveloperRecord[]): {
         visit_count: (dev as unknown as Record<string, unknown>).visit_count as number ?? 0,
         loadout: (dev as unknown as Record<string, unknown>).loadout as CityBuilding["loadout"] ?? null,
         app_streak: (dev as unknown as Record<string, unknown>).app_streak as number ?? 0,
+        raid_xp: (dev as unknown as Record<string, unknown>).raid_xp as number ?? 0,
+        current_week_contributions: (dev as unknown as Record<string, unknown>).current_week_contributions as number ?? 0,
+        current_week_kudos_given: (dev as unknown as Record<string, unknown>).current_week_kudos_given as number ?? 0,
+        current_week_kudos_received: (dev as unknown as Record<string, unknown>).current_week_kudos_received as number ?? 0,
+        active_raid_tag: (dev as unknown as Record<string, unknown>).active_raid_tag as CityBuilding["active_raid_tag"] ?? null,
         position: [posX, 0, posZ],
         width: w,
         depth: d,
