@@ -103,6 +103,10 @@ export interface RaidPreviewResponse {
   target_raided_this_week: boolean;
   attack_estimate: StrengthEstimate;
   defense_estimate: StrengthEstimate;
+  attack_score: number;
+  defense_score: number;
+  attack_breakdown: ScoreBreakdown;
+  defense_breakdown: ScoreBreakdown;
   attacker_login: string;
   attacker_avatar: string | null;
   defender_login: string;

@@ -20,7 +20,17 @@ const ESTIMATE_CONFIG = {
   strong: { label: "STRONG", color: "#44ff44", bars: 3 },
 } as const;
 
-function StrengthBar({ estimate, label }: { estimate: "weak" | "medium" | "strong"; label: string }) {
+function StrengthBar({
+  estimate,
+  label,
+  score,
+  breakdown,
+}: {
+  estimate: "weak" | "medium" | "strong";
+  label: string;
+  score: number;
+  breakdown: { commits: number; streak: number; kudos: number };
+}) {
   const config = ESTIMATE_CONFIG[estimate];
   return (
     <div className="flex flex-col items-center gap-1">
@@ -37,9 +47,17 @@ function StrengthBar({ estimate, label }: { estimate: "weak" | "medium" | "stron
           />
         ))}
       </div>
-      <span className="text-[10px] font-bold" style={{ color: config.color }}>
-        {config.label}
+      <span className="text-sm font-bold tabular-nums" style={{ color: config.color }}>
+        {score}
       </span>
+      <div className="flex flex-col items-center gap-0.5 text-[8px] text-muted/70">
+        {breakdown.commits > 0 && <span>commits {breakdown.commits}</span>}
+        {breakdown.streak > 0 && <span>streak {breakdown.streak}</span>}
+        {breakdown.kudos > 0 && <span>kudos {breakdown.kudos}</span>}
+        {breakdown.commits === 0 && breakdown.streak === 0 && breakdown.kudos === 0 && (
+          <span>no stats</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -125,7 +143,12 @@ export default function RaidPreviewModal({ preview, loading, error, onRaid, onCa
                 {preview.attacker_login}
               </p>
             </div>
-            <StrengthBar estimate={preview.attack_estimate} label="Attack" />
+            <StrengthBar
+              estimate={preview.attack_estimate}
+              label="Attack"
+              score={preview.attack_score}
+              breakdown={preview.attack_breakdown}
+            />
           </div>
 
           <span className="font-silkscreen text-lg text-red-500">VS</span>
@@ -143,7 +166,12 @@ export default function RaidPreviewModal({ preview, loading, error, onRaid, onCa
                 {preview.defender_login}
               </p>
             </div>
-            <StrengthBar estimate={preview.defense_estimate} label="Defense" />
+            <StrengthBar
+              estimate={preview.defense_estimate}
+              label="Defense"
+              score={preview.defense_score}
+              breakdown={preview.defense_breakdown}
+            />
           </div>
         </div>
 

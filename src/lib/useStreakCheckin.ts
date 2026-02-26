@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 export interface RaidSinceLast {
@@ -40,12 +40,15 @@ export function useStreakCheckin(
     return null;
   });
   const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
     if (!session || !hasClaimed) return;
-    // Already fetched this session
+    // Already fetched this session (ref guards against StrictMode double-fire)
+    if (fetchedRef.current) return;
     if (typeof window !== "undefined" && sessionStorage.getItem(CACHE_KEY)) return;
 
+    fetchedRef.current = true;
     setLoading(true);
 
     fetch("/api/checkin", { method: "POST" })
@@ -61,7 +64,9 @@ export function useStreakCheckin(
           }
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        fetchedRef.current = false; // allow retry on error
+      })
       .finally(() => setLoading(false));
   }, [session, hasClaimed]);
 

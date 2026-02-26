@@ -4,6 +4,57 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { rateLimit } from "@/lib/rate-limit";
 import { checkAchievements } from "@/lib/achievements";
 
+// Lightweight GitHub fetch: only current week contributions
+async function fetchWeeklyContributions(login: string): Promise<number | null> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return null;
+
+  try {
+    const res = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: `query($login: String!) {
+          user(login: $login) {
+            contributionsCollection {
+              contributionCalendar {
+                weeks { contributionDays { contributionCount, date } }
+              }
+            }
+          }
+        }`,
+        variables: { login },
+      }),
+    });
+
+    if (!res.ok) return null;
+    const json = await res.json();
+    const weeks = json?.data?.user?.contributionsCollection?.contributionCalendar?.weeks;
+    if (!weeks) return null;
+
+    const now = new Date();
+    const isoWeekStart = new Date(now);
+    const dayOfWeek = now.getDay();
+    isoWeekStart.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+    isoWeekStart.setHours(0, 0, 0, 0);
+
+    let total = 0;
+    for (const week of weeks) {
+      for (const day of week.contributionDays ?? []) {
+        if (new Date(day.date) >= isoWeekStart) {
+          total += day.contributionCount;
+        }
+      }
+    }
+    return total;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST() {
   const supabase = await createServerSupabase();
   const {
@@ -109,6 +160,16 @@ export async function POST() {
       },
     });
   }
+
+  // Refresh weekly contributions from GitHub (fire-and-forget, non-blocking)
+  fetchWeeklyContributions(githubLogin).then((weeklyContribs) => {
+    if (weeklyContribs !== null) {
+      sb.from("developers")
+        .update({ current_week_contributions: weeklyContribs })
+        .eq("id", dev.id)
+        .then();
+    }
+  });
 
   // Count unseen achievements
   const { count: unseenCount } = await sb
