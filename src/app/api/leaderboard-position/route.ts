@@ -56,19 +56,11 @@ export async function GET(request: Request) {
       .select("id", { count: "exact", head: true })
       .eq("developer_id", dev.id);
     const achCount = userAchCount ?? 0;
-    // Count devs with more achievements
-    const { data: allCounts } = await sb
-      .from("developer_achievements")
-      .select("developer_id");
-    const counts: Record<number, number> = {};
-    for (const row of allCounts ?? []) {
-      counts[row.developer_id] = (counts[row.developer_id] ?? 0) + 1;
-    }
-    let pos = 1;
-    for (const [, count] of Object.entries(counts)) {
-      if (count > achCount) pos++;
-    }
-    position = pos;
+    // Count how many devs have more achievements using DB-side aggregation
+    const { count: devsAbove } = await sb.rpc("count_devs_with_more_achievements", {
+      target_count: achCount,
+    });
+    position = (devsAbove ?? 0) + 1;
     metricValue = String(achCount);
   }
 

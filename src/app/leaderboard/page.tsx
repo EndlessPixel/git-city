@@ -70,28 +70,28 @@ export default async function LeaderboardPage({
   let achieverCounts: Record<string, number> = {};
 
   if (activeTab === "achievers") {
-    // Get achievement counts
-    const { data: achData } = await supabase
-      .from("developer_achievements")
-      .select("developer_id");
+    // DB-side aggregation: get top 50 devs by achievement count
+    const { data: topAchievers } = await supabase
+      .rpc("top_achievers", { lim: 50 });
 
-    const counts: Record<number, number> = {};
-    for (const row of achData ?? []) {
-      counts[row.developer_id] = (counts[row.developer_id] ?? 0) + 1;
+    const achieverIds = (topAchievers ?? []).map((a: { developer_id: number }) => a.developer_id);
+    const achCountMap: Record<number, number> = {};
+    for (const a of topAchievers ?? []) {
+      achCountMap[a.developer_id] = a.ach_count;
     }
 
-    // Get all devs and sort by achievement count, tiebreak by created_at
-    const { data: allDevs } = await supabase
-      .from("developers")
-      .select("id, github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count, created_at")
-      .order("contributions", { ascending: false })
-      .limit(500);
+    // Fetch dev details only for the top achievers
+    const { data: achieverDevs } = achieverIds.length > 0
+      ? await supabase
+        .from("developers")
+        .select("id, github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count, created_at")
+        .in("id", achieverIds)
+      : { data: [] };
 
-    const sorted = (allDevs ?? [])
-      .map((d) => ({ ...d, ach_count: counts[d.id] ?? 0 }))
-      .filter((d) => d.ach_count > 0)
-      .sort((a, b) => b.ach_count - a.ach_count || new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      .slice(0, 50);
+    // Sort by achievement count (preserving DB order)
+    const sorted = (achieverDevs ?? [])
+      .map((d) => ({ ...d, ach_count: achCountMap[d.id] ?? 0 }))
+      .sort((a, b) => b.ach_count - a.ach_count || new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     devs = sorted as unknown as Developer[];
     for (const d of sorted) {

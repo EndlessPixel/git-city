@@ -445,8 +445,10 @@ export async function GET(
       });
     }
 
-    // Recalculate ranks so this developer gets a fresh rank immediately
-    await sb.rpc("recalculate_ranks");
+    // Only recalculate ranks when a new developer joins (not on every refresh)
+    if (isNewDev) {
+      await sb.rpc("recalculate_ranks");
+    }
 
     const { data: withRank } = await sb
       .from("developers")
