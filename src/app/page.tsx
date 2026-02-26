@@ -407,6 +407,44 @@ function HomeContent() {
 
   // Raid system
   const [raidState, raidActions] = useRaidSequence();
+  const prevRaidPhaseRef = useRef<string>("idle");
+  const lastSuccessfulRaidRef = useRef<{ defenderLogin: string; attackerLogin: string; tagStyle: string } | null>(null);
+
+  // Track successful raid data before state resets
+  useEffect(() => {
+    if (raidState.raidData?.success && raidState.defenderBuilding) {
+      lastSuccessfulRaidRef.current = {
+        defenderLogin: raidState.defenderBuilding.login,
+        attackerLogin: raidState.raidData.attacker.login,
+        tagStyle: raidState.raidData.tag_style,
+      };
+    }
+  }, [raidState.raidData, raidState.defenderBuilding]);
+
+  // Update building with raid tag when raid exits
+  useEffect(() => {
+    const prev = prevRaidPhaseRef.current;
+    prevRaidPhaseRef.current = raidState.phase;
+
+    if (raidState.phase === "idle" && prev !== "idle" && prev !== "preview" && lastSuccessfulRaidRef.current) {
+      const { defenderLogin, attackerLogin, tagStyle } = lastSuccessfulRaidRef.current;
+      lastSuccessfulRaidRef.current = null;
+      setBuildings((prev) =>
+        prev.map((b) =>
+          b.login === defenderLogin
+            ? {
+                ...b,
+                active_raid_tag: {
+                  attacker_login: attackerLogin,
+                  tag_style: tagStyle,
+                  expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+                },
+              }
+            : b
+        )
+      );
+    }
+  }, [raidState.phase]);
 
   // Fetch ads from DB (fallback to DEFAULT_SKY_ADS on error)
   useEffect(() => {
@@ -535,7 +573,7 @@ function HomeContent() {
       } catch { /* ignore */ }
     };
     fetchFeed();
-    const interval = setInterval(fetchFeed, 60000);
+    const interval = setInterval(fetchFeed, 120000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -19,7 +20,7 @@ interface Props {
   params: Promise<{ username: string }>;
 }
 
-async function getDeveloper(username: string) {
+const getDeveloper = cache(async (username: string) => {
   const supabase = await createServerSupabase();
   const { data } = await supabase
     .from("developers")
@@ -27,7 +28,7 @@ async function getDeveloper(username: string) {
     .eq("github_login", username.toLowerCase())
     .single();
   return data;
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;

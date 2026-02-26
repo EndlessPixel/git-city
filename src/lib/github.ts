@@ -11,7 +11,7 @@ export interface DeveloperRecord {
   public_repos: number;
   total_stars: number;
   primary_language: string | null;
-  top_repos: TopRepo[];
+  top_repos?: TopRepo[];
   rank: number | null;
   fetched_at: string;
   created_at: string;

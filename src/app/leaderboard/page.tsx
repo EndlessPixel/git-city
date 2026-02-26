@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { createServerSupabase } from "@/lib/supabase-server";
 import LeaderboardTracker from "@/components/LeaderboardTracker";
+import LeaderboardYouBadge, { LeaderboardAuthProvider } from "@/components/LeaderboardYouBadge";
+import LeaderboardUserPosition from "@/components/LeaderboardUserPosition";
 
-export const dynamic = "force-dynamic"; // needs auth session per request
+export const revalidate = 300; // ISR: regenerate every 5 min
 
 export const metadata: Metadata = {
   title: "Leaderboard - Git City",
@@ -49,20 +50,10 @@ function rankColor(rank: number): string {
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; user?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const params = await searchParams;
   const activeTab = (params.tab ?? "contributors") as TabId;
-
-  // Auto-detect logged-in user, fallback to ?user= param
-  const authSupabase = await createServerSupabase();
-  const { data: { user: authUser } } = await authSupabase.auth.getUser();
-  const authLogin = (
-    authUser?.user_metadata?.user_name ??
-    authUser?.user_metadata?.preferred_username ??
-    ""
-  ).toLowerCase();
-  const currentUser = params.user?.toLowerCase() || authLogin || undefined;
 
   const supabase = getSupabaseAdmin();
 
@@ -121,59 +112,7 @@ export default async function LeaderboardPage({
     ? devs.some((d) => (d.referral_count ?? 0) > 0)
     : true;
 
-  // Find current user position
-  let userRow: Developer | null = null;
-  let userPosition: number | null = null;
-  if (currentUser) {
-    const userInList = devs.findIndex(
-      (d) => d.github_login.toLowerCase() === currentUser
-    );
-    if (userInList >= 0) {
-      userRow = devs[userInList];
-      userPosition = userInList + 1;
-    } else {
-      // Fetch user outside top 50
-      const { data: userData } = await supabase
-        .from("developers")
-        .select("github_login, name, avatar_url, contributions, contributions_total, total_stars, public_repos, primary_language, rank, referral_count, kudos_count")
-        .eq("github_login", currentUser)
-        .single();
-      if (userData) {
-        userRow = userData as Developer;
-        if (activeTab === "achievers") {
-          // Count how many devs have more achievements
-          const userAchCount = achieverCounts[userData.github_login] ?? 0;
-          let pos = 1;
-          for (const [, count] of Object.entries(achieverCounts)) {
-            if (count > userAchCount) pos++;
-          }
-          userPosition = pos;
-          if (!achieverCounts[userData.github_login]) {
-            // User has 0 achievements — fetch their count
-            const { count: achCount } = await supabase
-              .from("developer_achievements")
-              .select("id", { count: "exact", head: true })
-              .eq("developer_id", (userData as Record<string, unknown>).id);
-            achieverCounts[userData.github_login] = achCount ?? 0;
-          }
-        } else if (activeTab === "contributors") {
-          // Contributors tab uses rank directly
-          userPosition = (userData as Record<string, unknown>).rank as number ?? null;
-        } else {
-          // Calculate position via count of devs with higher metric
-          const metricValue = activeTab === "stars" ? userData.total_stars
-            : activeTab === "architects" ? userData.public_repos
-            : activeTab === "recruiters" ? ((userData as Record<string, unknown>).referral_count as number ?? 0)
-            : 0;
-          const { count } = await supabase
-            .from("developers")
-            .select("id", { count: "exact", head: true })
-            .gt(orderColumn, metricValue);
-          userPosition = (count ?? 0) + 1;
-        }
-      }
-    }
-  }
+  const topLogins = devs.map((d) => d.github_login.toLowerCase());
 
   function getMetricValue(dev: Developer): string {
     switch (activeTab) {
@@ -193,6 +132,7 @@ export default async function LeaderboardPage({
     : "Referrals";
 
   return (
+    <LeaderboardAuthProvider>
     <main className="min-h-screen bg-bg font-pixel uppercase text-warm">
       <LeaderboardTracker tab={activeTab} />
       <div className="mx-auto max-w-3xl px-4 py-10">
@@ -246,13 +186,11 @@ export default async function LeaderboardPage({
           {/* Rows */}
           {devs.map((dev, i) => {
             const pos = i + 1;
-            const isCurrentUser = currentUser && dev.github_login.toLowerCase() === currentUser;
             return (
               <Link
                 key={dev.github_login}
                 href={`/dev/${dev.github_login}`}
                 className="flex items-center gap-4 border-b border-border/50 px-5 py-3.5 transition-colors hover:bg-bg-card"
-                style={isCurrentUser ? { backgroundColor: "rgba(200, 230, 74, 0.08)" } : undefined}
               >
                 <span
                   className="w-10 text-center text-sm font-bold"
@@ -275,11 +213,7 @@ export default async function LeaderboardPage({
                   <div className="overflow-hidden">
                     <p className="truncate text-sm text-cream">
                       {dev.name ?? dev.github_login}
-                      {isCurrentUser && (
-                        <span className="ml-2 text-[10px]" style={{ color: ACCENT }}>
-                          YOU
-                        </span>
-                      )}
+                      <LeaderboardYouBadge login={dev.github_login} />
                     </p>
                     {dev.name && (
                       <p className="truncate text-[10px] text-muted">
@@ -300,44 +234,8 @@ export default async function LeaderboardPage({
             );
           })}
 
-          {/* "YOU" row if not in top 50 */}
-          {userRow && userPosition && userPosition > 50 && (
-            <>
-              <div className="px-5 py-1 text-center text-[9px] text-dim">
-                \u22EE
-              </div>
-              <Link
-                href={`/dev/${userRow.github_login}`}
-                className="flex items-center gap-4 border-t border-border/50 px-5 py-3.5 hover:bg-bg-card"
-                style={{ backgroundColor: "rgba(200, 230, 74, 0.08)" }}
-              >
-                <span className="w-10 text-center text-sm font-bold" style={{ color: ACCENT }}>
-                  {userPosition}
-                </span>
-                <div className="flex flex-1 items-center gap-3 overflow-hidden">
-                  {userRow.avatar_url && (
-                    <Image
-                      src={userRow.avatar_url}
-                      alt={userRow.github_login}
-                      width={36}
-                      height={36}
-                      className="border-[2px] border-border"
-                      style={{ imageRendering: "pixelated" }}
-                    />
-                  )}
-                  <div className="overflow-hidden">
-                    <p className="truncate text-sm text-cream">
-                      {userRow.name ?? userRow.github_login}
-                      <span className="ml-2 text-[10px]" style={{ color: ACCENT }}>YOU</span>
-                    </p>
-                  </div>
-                </div>
-                <span className="w-28 text-right text-sm" style={{ color: ACCENT }}>
-                  {getMetricValue(userRow)}
-                </span>
-              </Link>
-            </>
-          )}
+          {/* "YOU" row if not in top 50 — handled client-side */}
+          <LeaderboardUserPosition tab={activeTab} topLogins={topLogins} />
 
           {devs.length === 0 && (
             <div className="px-5 py-8 text-center text-xs text-muted normal-case">
@@ -374,5 +272,6 @@ export default async function LeaderboardPage({
         </div>
       </div>
     </main>
+    </LeaderboardAuthProvider>
   );
 }

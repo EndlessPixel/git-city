@@ -67,7 +67,7 @@ export async function checkAchievements(
 
   // Fetch all achievements not yet unlocked by this dev
   const [allRes, unlockedRes] = await Promise.all([
-    sb.from("achievements").select("*"),
+    sb.from("achievements").select("id, category, threshold, tier, name, reward_type, reward_item_id"),
     sb
       .from("developer_achievements")
       .select("achievement_id")
