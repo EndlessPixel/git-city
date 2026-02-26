@@ -49,16 +49,17 @@ export async function POST(request: Request) {
     ""
   ).toLowerCase();
 
-  // Fetch attacker + defender in parallel (only columns that exist pre-migration)
+  // Fetch attacker + defender in parallel
+  const raidColumns = "id, claimed, github_login, avatar_url, contributions, public_repos, total_stars, kudos_count, app_streak, raid_xp, current_week_contributions, current_week_kudos_given, current_week_kudos_received";
   const [attackerRes, defenderRes] = await Promise.all([
     admin
       .from("developers")
-      .select("id, claimed, github_login, avatar_url, contributions, public_repos, total_stars, kudos_count, app_streak")
+      .select(raidColumns)
       .eq("github_login", githubLogin)
       .single(),
     admin
       .from("developers")
-      .select("id, claimed, github_login, avatar_url, contributions, public_repos, total_stars, kudos_count, app_streak")
+      .select(raidColumns)
       .eq("github_login", target_login.toLowerCase())
       .single(),
   ]);

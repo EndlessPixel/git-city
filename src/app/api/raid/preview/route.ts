@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   // Fetch attacker
   const attackerRes = await admin
     .from("developers")
-    .select("id, claimed, app_streak, github_login, avatar_url")
+    .select("id, claimed, app_streak, github_login, avatar_url, current_week_contributions, current_week_kudos_given")
     .eq("github_login", githubLogin)
     .single();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   // Fetch defender
   const defenderRes = await admin
     .from("developers")
-    .select("id, claimed, app_streak, avatar_url, github_login, contributions")
+    .select("id, claimed, app_streak, avatar_url, github_login, contributions, current_week_contributions, current_week_kudos_received")
     .eq("github_login", target_login.toLowerCase())
     .single();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
