@@ -421,11 +421,23 @@ function HomeContent() {
   const [rabbitCompletion, setRabbitCompletion] = useState(false);
   const [rabbitHintFlash, setRabbitHintFlash] = useState<string | null>(null);
 
+  // DEBUG: test rabbit cinematic from console — __testRabbitCinematic(3)
+  useEffect(() => {
+    (window as any).__testRabbitCinematic = (sighting = 1) => {
+      setRabbitSighting(sighting);
+      setRabbitCinematic(true);
+    };
+  }, []);
+
   // Growth optimization (A1: sign-in prompt, A5: ad direct open)
   const buildingClickCountRef = useRef(0);
   const signInPromptShownRef = useRef(false);
   const [signInPromptVisible, setSignInPromptVisible] = useState(false);
   const [adToast, setAdToast] = useState<string | null>(null);
+
+  // A8: Ghost preview for own building
+  const ghostPreviewShownRef = useRef(false);
+  const [ghostPreviewLogin, setGhostPreviewLogin] = useState<string | null>(null);
 
   // Raid system
   const [raidState, raidActions] = useRaidSequence();
@@ -1096,6 +1108,17 @@ function HomeContent() {
       // Focus camera on the searched building
       setFocusedBuilding(devData.github_login);
 
+      // A8: Ghost preview — if user searched for themselves, show temporary effect
+      if (
+        authLogin &&
+        trimmed === authLogin &&
+        !ghostPreviewShownRef.current
+      ) {
+        ghostPreviewShownRef.current = true;
+        setGhostPreviewLogin(devData.github_login);
+        setTimeout(() => setGhostPreviewLogin(null), 4000);
+      }
+
       // Find the building in the updated city
       const foundBuilding = updatedBuildings?.find(
         (b: CityBuilding) => b.login.toLowerCase() === trimmed
@@ -1252,6 +1275,7 @@ function HomeContent() {
         introMode={introMode}
         onIntroEnd={endIntro}
         onFocusInfo={() => {}}
+        ghostPreviewLogin={ghostPreviewLogin}
         raidPhase={raidState.phase}
         raidData={raidState.raidData}
         raidAttacker={raidState.attackerBuilding}
@@ -1907,6 +1931,40 @@ function HomeContent() {
         </div>
       )}
 
+      {/* ─── A8: Ghost preview CTA ─── */}
+      {ghostPreviewLogin && (
+        <div className="fixed top-20 left-1/2 z-50 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-xs animate-[slide-up_0.2s_ease-out]">
+          <div
+            className="border-[3px] bg-bg-raised/95 px-4 py-3 backdrop-blur-sm"
+            style={{ borderColor: theme.accent }}
+          >
+            <p className="text-[10px] text-cream normal-case mb-2 leading-relaxed">
+              Unlock effects for your building
+            </p>
+            <p className="text-[8px] text-muted normal-case mb-2.5">
+              Neon Outline, Particle Aura, Spotlight, and more
+            </p>
+            <Link
+              href={myBuilding?.claimed ? `/shop/${ghostPreviewLogin}` : `/dev/${ghostPreviewLogin}`}
+              onClick={() => setGhostPreviewLogin(null)}
+              className="btn-press block w-full py-2 text-center text-[10px] text-bg"
+              style={{
+                backgroundColor: theme.accent,
+                boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+              }}
+            >
+              {myBuilding?.claimed ? "Customize" : "Claim & Customize"} &rarr;
+            </Link>
+            <button
+              onClick={() => setGhostPreviewLogin(null)}
+              className="mt-1.5 w-full py-1 text-[8px] text-dim transition-colors hover:text-muted"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Building Profile Card ─── */}
       {/* Desktop: right edge, vertically centered. Mobile: bottom sheet, centered. */}
       {selectedBuilding && (!flyMode || flyPaused) && !comparePair && raidState.phase === "idle" && (
@@ -2031,6 +2089,55 @@ function HomeContent() {
                   )}
                 </div>
               )}
+
+              {/* A7: Show equipped items on other devs' buildings (mimetic desire) */}
+              {selectedBuilding.login.toLowerCase() !== authLogin && (() => {
+                const equipped: string[] = [];
+                if (selectedBuilding.loadout?.crown) equipped.push(selectedBuilding.loadout.crown);
+                if (selectedBuilding.loadout?.roof) equipped.push(selectedBuilding.loadout.roof);
+                if (selectedBuilding.loadout?.aura) equipped.push(selectedBuilding.loadout.aura);
+                for (const fi of ["custom_color", "billboard", "led_banner"]) {
+                  if (selectedBuilding.owned_items.includes(fi)) equipped.push(fi);
+                }
+                if (equipped.length === 0) return null;
+                const shown = equipped.slice(0, 3);
+                const extra = equipped.length - 3;
+                return (
+                  <div
+                    className="mx-4 mb-3 border-[2px] p-2.5"
+                    style={{ borderColor: `${theme.accent}33`, backgroundColor: `${theme.accent}08` }}
+                  >
+                    <div className="flex flex-wrap gap-1.5">
+                      {shown.map((id) => (
+                        <span
+                          key={id}
+                          className="text-[9px] normal-case"
+                          style={{ color: theme.accent }}
+                        >
+                          {ITEM_EMOJIS[id] ?? "🎁"} {ITEM_NAMES[id] ?? id}
+                        </span>
+                      ))}
+                      {extra > 0 && (
+                        <span className="text-[9px] text-muted">
+                          +{extra} more
+                        </span>
+                      )}
+                    </div>
+                    {session && (
+                      <Link
+                        href={`/shop/${authLogin}`}
+                        className="btn-press mt-2 block w-full py-1.5 text-center text-[9px] text-bg"
+                        style={{
+                          backgroundColor: theme.accent,
+                          boxShadow: `2px 2px 0 0 ${theme.shadow}`,
+                        }}
+                      >
+                        Get these for your building
+                      </Link>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Kudos: give kudos (other's building, logged in) */}
               {session && selectedBuilding.login.toLowerCase() !== authLogin && (

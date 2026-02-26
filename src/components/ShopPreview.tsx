@@ -244,20 +244,21 @@ function ShopPreviewScene({
       <ambientLight intensity={0.35 * 3} color={THEME.ambientColor} />
       <directionalLight position={[300, 120, -200]} intensity={0.45 * 3.5} color={THEME.sunColor} />
       <directionalLight position={[-200, 60, 200]} intensity={0.15 * 3} color={THEME.fillColor} />
+      <hemisphereLight args={["#5080a0", "#202830", 0.5 * 3.5]} />
 
-      {/* Subtle fog for atmosphere */}
-      <fog attach="fog" args={[THEME.fogColor, 200, 600]} />
+      {/* Subtle fog for atmosphere (scaled to building size) */}
+      <fog attach="fog" args={[THEME.fogColor, H * 1.5, H * 5]} />
 
       <OrbitControls
         autoRotate
         autoRotateSpeed={1}
         enablePan
         screenSpacePanning
-        minDistance={15}
-        maxDistance={Math.max(200, H * 4)}
+        minDistance={Math.max(15, H * 0.15)}
+        maxDistance={Math.max(200, H * 3)}
         minPolarAngle={0.05}
         maxPolarAngle={Math.PI * 0.85}
-        target={[0, H * 0.15, 0]}
+        target={[0, H * 0.05, 0]}
       />
 
       <Ground y={-H / 2} size={groundSize} />
@@ -313,15 +314,20 @@ export default function ShopPreview({
   buildingDims?: BuildingDims;
   highlightItemId?: string | null;
 }) {
-  const dims = buildingDims ?? DEFAULT_DIMS;
-  // Camera distance adapts to building size
-  const camDist = Math.max(60, dims.height * 1.5);
+  // Clamp building dims for preview (cap height, ensure min width/depth)
+  const raw = buildingDims ?? DEFAULT_DIMS;
+  const dims: BuildingDims = {
+    width: Math.max(18, raw.width),
+    height: Math.min(55, Math.max(30, raw.height)),
+    depth: Math.max(14, raw.depth),
+  };
+  const camDist = Math.max(80, dims.height * 2.5);
 
   return (
     <div className="relative border-[3px] border-border" style={{ backgroundColor: THEME.fogColor }}>
       <div className="h-[280px] sm:h-[360px] lg:h-[520px]">
         <Canvas
-          camera={{ position: [0, camDist * 0.4, camDist], fov: 45 }}
+          camera={{ position: [camDist * 0.5, camDist * 0.3, camDist * 0.7], fov: 45 }}
           gl={{ antialias: false }}
         >
           <color attach="background" args={[THEME.fogColor]} />

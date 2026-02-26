@@ -72,6 +72,7 @@ interface CitySceneProps {
   onFocusInfo?: (info: FocusInfo) => void;
   introMode?: boolean;
   flyMode?: boolean;
+  ghostPreviewLogin?: string | null;
 }
 
 export default function CityScene({
@@ -85,6 +86,7 @@ export default function CityScene({
   onFocusInfo,
   introMode,
   flyMode,
+  ghostPreviewLogin,
 }: CitySceneProps) {
   // Single atlas texture for all building windows (created once per theme)
   const atlasTexture = useMemo(() => createWindowAtlas(colors), [colors]);
@@ -178,6 +180,7 @@ export default function CityScene({
         hideEffectsFor={hideEffectsFor}
         introMode={introMode}
         flyMode={flyMode}
+        ghostPreviewLogin={ghostPreviewLogin}
       />
 
       {/* FocusBeacon: standalone, only when a building is focused */}

@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import type { CityBuilding } from "@/lib/github";
 import type { BuildingColors } from "./CityCanvas";
 import { ClaimedGlow, BuildingItemEffects } from "./Building3D";
-import { StreakFlame } from "./BuildingEffects";
+import { StreakFlame, NeonOutline, ParticleAura, SpotlightEffect } from "./BuildingEffects";
 import RaidTag3D from "./RaidTag3D";
 
 // ─── Spatial Grid (same structure as CityScene) ────────────────
@@ -52,6 +52,7 @@ interface EffectsLayerProps {
   hideEffectsFor?: string | null;
   introMode?: boolean;
   flyMode?: boolean;
+  ghostPreviewLogin?: string | null;
 }
 
 export default function EffectsLayer({
@@ -64,6 +65,7 @@ export default function EffectsLayer({
   hideEffectsFor,
   introMode,
   flyMode,
+  ghostPreviewLogin,
 }: EffectsLayerProps) {
   const lastUpdate = useRef(-1);
   const activeSetRef = useRef(new Set<number>());
@@ -140,6 +142,17 @@ export default function EffectsLayer({
     }
   });
 
+  // A8: Ghost preview — pick a random aura effect based on login hash
+  const ghostLower = ghostPreviewLogin?.toLowerCase() ?? null;
+  const ghostIdx = ghostLower ? loginToIdx.get(ghostLower) : undefined;
+  const ghostBuilding = ghostIdx != null ? buildings[ghostIdx] : null;
+  const ghostEffectId = useMemo(() => {
+    if (!ghostLower) return 0;
+    let h = 0;
+    for (let i = 0; i < ghostLower.length; i++) h = (h * 31 + ghostLower.charCodeAt(i)) | 0;
+    return Math.abs(h) % 3; // 0=NeonOutline, 1=ParticleAura, 2=Spotlight
+  }, [ghostLower]);
+
   if (introMode) return null;
 
   return (
@@ -151,6 +164,7 @@ export default function EffectsLayer({
         if (hideLower === loginLower) return null;
         const isFocused = focusedLower === loginLower || focusedBLower === loginLower;
         const isDimmed = !!focusedLower && !isFocused;
+        const isGhostTarget = ghostLower === loginLower;
         return (
           <group key={b.login} position={[b.position[0], 0, b.position[2]]} visible={!isDimmed}>
             {b.claimed && (
@@ -161,6 +175,14 @@ export default function EffectsLayer({
               accentColor={accentColor}
               focused={isFocused}
             />
+            {/* A8: Ghost preview effect (temporary aura) */}
+            {isGhostTarget && (
+              ghostEffectId === 0
+                ? <NeonOutline width={b.width} height={b.height} depth={b.depth} color={accentColor} />
+                : ghostEffectId === 1
+                ? <ParticleAura width={b.width} height={b.height} depth={b.depth} color={accentColor} />
+                : <SpotlightEffect height={b.height} width={b.width} depth={b.depth} color={accentColor} />
+            )}
             {b.app_streak > 0 && (
               <StreakFlame height={b.height} width={b.width} depth={b.depth} streakDays={b.app_streak} color={accentColor} />
             )}
@@ -176,6 +198,17 @@ export default function EffectsLayer({
           </group>
         );
       })}
+      {/* A8: Ghost preview for building not in active set (force render) */}
+      {ghostBuilding && ghostIdx != null && !activeIndices.includes(ghostIdx) && (
+        <group position={[ghostBuilding.position[0], 0, ghostBuilding.position[2]]}>
+          {ghostEffectId === 0
+            ? <NeonOutline width={ghostBuilding.width} height={ghostBuilding.height} depth={ghostBuilding.depth} color={accentColor} />
+            : ghostEffectId === 1
+            ? <ParticleAura width={ghostBuilding.width} height={ghostBuilding.height} depth={ghostBuilding.depth} color={accentColor} />
+            : <SpotlightEffect height={ghostBuilding.height} width={ghostBuilding.width} depth={ghostBuilding.depth} color={accentColor} />
+          }
+        </group>
+      )}
     </>
   );
 }
