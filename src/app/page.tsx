@@ -20,6 +20,7 @@ import ActivityPanel from "@/components/ActivityPanel";
 import LofiRadio from "@/components/LofiRadio";
 import { ITEM_NAMES, ITEM_EMOJIS } from "@/lib/zones";
 import { useStreakCheckin } from "@/lib/useStreakCheckin";
+import { useLiveUsers } from "@/lib/useLiveUsers";
 import { useRaidSequence } from "@/lib/useRaidSequence";
 import RaidPreviewModal from "@/components/RaidPreviewModal";
 import RaidOverlay from "@/components/RaidOverlay";
@@ -1212,6 +1213,9 @@ function HomeContent() {
   // Streak auto check-in (1x per browser session)
   const { streakData } = useStreakCheckin(session, !!myBuilding?.claimed);
 
+  // Live users presence
+  const { count: liveUsers, status: liveStatus } = useLiveUsers();
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-bg font-pixel uppercase text-warm">
       {/* 3D Canvas */}
@@ -1610,6 +1614,13 @@ function HomeContent() {
             <span style={{ color: theme.accent }}>&#9829;</span>
             <span className="text-cream">Sponsor</span>
           </a>
+          {liveStatus !== "error" && (
+            <div className="flex items-center gap-1.5 border-[3px] border-border bg-bg/70 px-2.5 py-1 text-[10px] backdrop-blur-sm">
+              <span className="live-dot h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#4ade80]" />
+              <span className="text-cream">{liveUsers.toLocaleString()}</span>
+              <span className="text-muted">live</span>
+            </div>
+          )}
         </div>
       )}
 
