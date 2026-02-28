@@ -9,11 +9,11 @@ const ACCENT = "#c8e64a";
 export const metadata: Metadata = {
   title: "Advertise on Git City",
   description:
-    "Reach 8,500+ verified GitHub developers. Planes, blimps, billboards in a 3D city. 1%+ avg click rate. Real-time analytics. From $19/week.",
+    "Reach 9,000+ GitHub developers. Planes, blimps, and billboards in a 3D city. 1%+ CTR (2x industry avg). From $9/week.",
   openGraph: {
     title: "Advertise on Git City",
     description:
-      "Reach 8,500+ verified GitHub developers. Planes, blimps, billboards in a 3D city. 1%+ avg click rate. Real-time analytics. From $19/week.",
+      "Reach 9,000+ GitHub developers. Planes, blimps, and billboards in a 3D city. 1%+ CTR (2x industry avg). From $9/week.",
     siteName: "Git City",
     type: "website",
     locale: "en_US",
@@ -76,7 +76,7 @@ export default async function AdvertisePage() {
       label: "avg click rate",
       sub: ctr > 0.9 ? "2x+ industry avg" : undefined,
     },
-    { value: `${formatK(devCount)}+`, label: "developer buildings" },
+    { value: `${formatK(devCount)}+`, label: "GitHub developers" },
   ];
 
   const barMax = Math.max(ctr, 1.2);
@@ -97,13 +97,13 @@ export default async function AdvertisePage() {
         {/* ── Hero ── */}
         <div className="mt-10 text-center">
           <h1 className="text-3xl text-cream sm:text-4xl">
-            Your brand in the{" "}
-            <span style={{ color: ACCENT }}>skyline</span>
+            Advertise where developers{" "}
+            <span style={{ color: ACCENT }}>actually look</span>
           </h1>
           <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-muted normal-case">
-            Planes, blimps, and billboards inside a 3D city
-            with {devCount.toLocaleString()}+ developer buildings.
-            Not a banner ad. Not a sidebar. Something people actually look at.
+            Planes fly across the sky. Blimps float between buildings.
+            Billboards light up the tallest towers. {devCount.toLocaleString()}+ real
+            GitHub developers explore this city every week. Your ad lives inside it.
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export default async function AdvertisePage() {
             {[
               "Verified GitHub developers, not bots",
               "Software engineers, CTOs, indie hackers",
-              "The people who build the tools your customers use",
+              "Premium demographic: avg $120K+ salary",
               "Minutes of engagement per session, not seconds",
               "Global reach: US, EU, Brazil, India",
               "100% viewability. No ad blockers. No scroll-past",
@@ -164,7 +164,7 @@ export default async function AdvertisePage() {
               Git City vs traditional ads
             </p>
             <p className="mt-1 text-xs text-muted normal-case">
-              Average click-through rate by platform
+              Click-through rate comparison (30-day average)
             </p>
 
             <div className="mt-5 space-y-3">
@@ -210,7 +210,7 @@ export default async function AdvertisePage() {
             </div>
 
             <p className="mt-4 text-xs text-dim normal-case">
-              Your ad is part of the world, not a banner people train
+              3D ads inside the world, not banners people train
               themselves to ignore.
             </p>
           </div>
@@ -233,21 +233,21 @@ export default async function AdvertisePage() {
           {/* How it works */}
           <div className="grid gap-8 sm:grid-cols-4">
             {[
-              { n: "01", t: "Pick", d: "5 formats from $19/week" },
+              { n: "01", t: "Pick", d: "Sky or building ads. 5 formats, starting at $9/week" },
               {
                 n: "02",
                 t: "Design",
-                d: "Write your text, pick colors, preview in 3D",
+                d: "Your text, your colors. Live 3D preview",
               },
               {
                 n: "03",
                 t: "Pay",
-                d: "Secure Stripe checkout. No account needed",
+                d: "Stripe checkout. No account needed. 30 seconds",
               },
               {
                 n: "04",
                 t: "Track",
-                d: "Private dashboard with real-time impressions and clicks",
+                d: "Real-time impressions, clicks, and CTR",
               },
             ].map((s) => (
               <div key={s.n}>
@@ -268,12 +268,12 @@ export default async function AdvertisePage() {
               Every ad includes
             </p>
             {[
-              "Your text, your colors, your brand",
+              "Your text, your colors, your link",
               "Live 3D preview before you buy",
-              "Clickable link with UTM tracking",
-              "Private dashboard with real-time impressions and clicks",
-              "Live within minutes of payment",
-              "Free unlimited text and detail changes",
+              "Clickable CTA with UTM tracking",
+              "Real-time impressions and click dashboard",
+              "Goes live within minutes",
+              "Change your ad anytime, no extra cost",
             ].map((f) => (
               <p
                 key={f}

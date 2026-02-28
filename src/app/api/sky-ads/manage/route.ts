@@ -4,6 +4,14 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 
 const OWNER_LOGIN = "srizzon";
 
+function generateToken(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  for (const b of bytes) token += chars[b % chars.length];
+  return token;
+}
+
 async function checkAdmin() {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { id, brand, text, description, color, bg_color, link, vehicle, priority, starts_at, ends_at } = body;
+  const { id, brand, text, description, color, bg_color, link, vehicle, priority, starts_at, ends_at, purchaser_email, plan_id } = body;
 
   if (!id || !brand || !text) {
     return NextResponse.json({ error: "Missing required fields: id, brand, text" }, { status: 400 });
@@ -31,6 +39,8 @@ export async function POST(request: Request) {
 
   const validVehicles = ["plane", "blimp", "billboard", "rooftop_sign", "led_wrap"];
   const safeVehicle = validVehicles.includes(vehicle) ? vehicle : "plane";
+
+  const trackingToken = generateToken();
 
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.from("sky_ads").insert({
@@ -45,6 +55,9 @@ export async function POST(request: Request) {
     priority: priority ?? 50,
     starts_at: starts_at ?? null,
     ends_at: ends_at ?? null,
+    tracking_token: trackingToken,
+    purchaser_email: purchaser_email ?? null,
+    plan_id: plan_id ?? null,
   }).select().single();
 
   if (error) {
@@ -58,6 +71,7 @@ export async function POST(request: Request) {
 const ALLOWED_UPDATE_FIELDS = new Set([
   "active", "brand", "text", "description", "color", "bg_color",
   "link", "vehicle", "priority", "starts_at", "ends_at",
+  "purchaser_email", "plan_id",
 ]);
 
 export async function PUT(request: Request) {
