@@ -27,7 +27,7 @@ import RaidOverlay from "@/components/RaidOverlay";
 import PillModal from "@/components/PillModal";
 import FounderMessage from "@/components/FounderMessage";
 import RabbitCompletion from "@/components/RabbitCompletion";
-import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent, isBuildingAd } from "@/lib/skyAds";
+import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent, trackAdEvents, isBuildingAd } from "@/lib/skyAds";
 import { track } from "@vercel/analytics";
 import {
   identifyUser,
@@ -1239,14 +1239,14 @@ function HomeContent() {
         flyHasOverlay={!!selectedBuilding}
         skyAds={skyAds}
         onAdClick={(ad) => {
-          trackAdEvent(ad.id, "click", authLogin || undefined);
           trackSkyAdClick(ad.id, ad.vehicle, ad.link);
           // Building ads (billboard, rooftop, led_wrap): direct open
           // Sky ads (plane, blimp): show modal first so user sees what it is
           if (ad.link && isBuildingAd(ad.vehicle)) {
             const ctaHref = buildAdLink(ad) ?? ad.link;
             const isMailto = ad.link.startsWith("mailto:");
-            trackAdEvent(ad.id, "cta_click", authLogin || undefined);
+            // Single beacon for both events (avoids rate limit dropping cta_click)
+            trackAdEvents(ad.id, ["click", "cta_click"], authLogin || undefined);
             trackSkyAdCtaClick(ad.id, ad.vehicle);
             track("sky_ad_click", { ad_id: ad.id, vehicle: ad.vehicle, brand: ad.brand ?? "" });
             if (isMailto) {
@@ -1261,6 +1261,7 @@ function HomeContent() {
             try { setAdToast(ad.brand || new URL(ad.link).hostname.replace("www.", "")); } catch { setAdToast(ad.brand || "link"); }
             setTimeout(() => setAdToast(null), 2500);
           } else {
+            trackAdEvent(ad.id, "click", authLogin || undefined);
             setClickedAd(ad);
           }
         }}

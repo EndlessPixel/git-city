@@ -75,6 +75,16 @@ export function trackAdEvent(adId: string, eventType: "impression" | "click" | "
   }
 }
 
+/** Fire multiple event types in a single beacon (saves rate limit budget). */
+export function trackAdEvents(adId: string, eventTypes: ("impression" | "click" | "cta_click")[], githubLogin?: string) {
+  const body = JSON.stringify({ ad_id: adId, event_types: eventTypes, ...(githubLogin && { github_login: githubLogin }) });
+  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+    navigator.sendBeacon("/api/sky-ads/track", new Blob([body], { type: "application/json" }));
+  } else {
+    fetch("/api/sky-ads/track", { method: "POST", body, keepalive: true }).catch(() => {});
+  }
+}
+
 export const DEFAULT_SKY_ADS: SkyAd[] = [
   {
     id: "gitcity",
