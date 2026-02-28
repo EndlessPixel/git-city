@@ -112,8 +112,6 @@ function AdBillboard({
         <boxGeometry args={[0.3, 3, 0.3]} />
         <meshStandardMaterial color="#333" metalness={0.5} roughness={0.4} />
       </mesh>
-      {/* Spot glow */}
-      <pointLight position={[0, y, zOff + 2]} color={ad.color} intensity={4} distance={20} />
     </group>
   );
 }
@@ -214,8 +212,6 @@ function AdRooftopSign({
         >
           <planeGeometry args={[signW, signH]} />
         </mesh>
-        {/* Glow */}
-        <pointLight position={[0, 0, 0]} color={ad.color} intensity={4} distance={15} />
       </group>
     </group>
   );
@@ -331,8 +327,6 @@ function AdLedWrap({
           </mesh>
         </group>
       ))}
-      {/* Single glow light (emissive materials handle most of the glow) */}
-      <pointLight position={[0, y, 0]} color={ad.color} intensity={4} distance={20} />
     </group>
   );
 }

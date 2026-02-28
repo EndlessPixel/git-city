@@ -3,15 +3,13 @@
 import { useEffect, useRef, useMemo } from "react";
 
 interface PillModalProps {
-  isLoggedIn: boolean;
-  hasClaimed: boolean;
   rabbitCompleted: boolean;
   onRedPill: () => void;
   onBluePill: () => void;
   onClose: () => void;
 }
 
-export default function PillModal({ isLoggedIn, hasClaimed, rabbitCompleted, onRedPill, onBluePill, onClose }: PillModalProps) {
+export default function PillModal({ rabbitCompleted, onRedPill, onBluePill, onClose }: PillModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Pre-compute matrix rain characters to avoid hydration mismatch
@@ -107,76 +105,51 @@ export default function PillModal({ isLoggedIn, hasClaimed, rabbitCompleted, onR
           </span>
 
           {/* Blue Pill */}
-          {(() => {
-            const canClick = isLoggedIn && hasClaimed && !rabbitCompleted;
-            const isLocked = !isLoggedIn || !hasClaimed;
-            const label = rabbitCompleted
-              ? "Already found"
-              : !isLoggedIn
-                ? "You're not ready yet"
-                : !hasClaimed
-                  ? "Claim your building first"
-                  : "The rabbit hole";
-            return (
-              <button
-                onClick={() => {
-                  if (canClick) onBluePill();
-                }}
-                className={`group flex flex-col items-center gap-3 transition-transform duration-200 ${
-                  canClick ? "cursor-pointer hover:scale-110" : "cursor-not-allowed"
-                }`}
-              >
+          <button
+            onClick={() => { if (!rabbitCompleted) onBluePill(); }}
+            className={`group flex flex-col items-center gap-3 transition-transform duration-200 ${
+              !rabbitCompleted ? "cursor-pointer hover:scale-110" : "cursor-default"
+            }`}
+          >
+            <div
+              className="relative w-20 h-12 sm:w-24 sm:h-14 rounded-full"
+              style={{
+                background: rabbitCompleted ? "#1a3322" : "#2266cc",
+                border: `3px solid ${rabbitCompleted ? "#2a5533" : "#4499ff"}`,
+                boxShadow: rabbitCompleted
+                  ? "4px 4px 0px #0a1520, inset -3px -3px 0px #1a2a3a, inset 3px 3px 0px #2a3a4a"
+                  : "4px 4px 0px #0a2244, 0 0 24px rgba(68, 136, 255, 0.25), inset -3px -3px 0px #114488, inset 3px 3px 0px #3377dd",
+                opacity: rabbitCompleted ? 0.5 : 1,
+              }}
+            >
+              {/* Pixel highlight blocks */}
+              <div
+                className="absolute top-[4px] left-[10px] w-[10px] h-[4px]"
+                style={{ background: rabbitCompleted ? "#3a4a5a" : "#6699ff" }}
+              />
+              <div
+                className="absolute top-[4px] left-[22px] w-[6px] h-[3px]"
+                style={{ background: rabbitCompleted ? "#2a3a4a" : "#4488ee" }}
+              />
+              {rabbitCompleted && (
                 <div
-                  className="relative w-20 h-12 sm:w-24 sm:h-14 rounded-full"
-                  style={{
-                    background: canClick ? "#2266cc" : rabbitCompleted ? "#1a3322" : "#223344",
-                    border: `3px solid ${canClick ? "#4499ff" : rabbitCompleted ? "#2a5533" : "#334455"}`,
-                    boxShadow: canClick
-                      ? "4px 4px 0px #0a2244, 0 0 24px rgba(68, 136, 255, 0.25), inset -3px -3px 0px #114488, inset 3px 3px 0px #3377dd"
-                      : "4px 4px 0px #0a1520, inset -3px -3px 0px #1a2a3a, inset 3px 3px 0px #2a3a4a",
-                    opacity: canClick ? 1 : 0.5,
-                  }}
+                  className="absolute inset-0 flex items-center justify-center font-pixel text-[10px]"
+                  style={{ color: "#00ff41" }}
                 >
-                  {/* Pixel highlight blocks */}
-                  <div
-                    className="absolute top-[4px] left-[10px] w-[10px] h-[4px]"
-                    style={{ background: canClick ? "#6699ff" : "#3a4a5a" }}
-                  />
-                  <div
-                    className="absolute top-[4px] left-[22px] w-[6px] h-[3px]"
-                    style={{ background: canClick ? "#4488ee" : "#2a3a4a" }}
-                  />
-                  {isLocked && (
-                    <div
-                      className="absolute inset-0 flex items-center justify-center font-pixel text-[10px]"
-                      style={{ color: "#556677" }}
-                    >
-                      LOCKED
-                    </div>
-                  )}
-                  {rabbitCompleted && (
-                    <div
-                      className="absolute inset-0 flex items-center justify-center font-pixel text-[10px]"
-                      style={{ color: "#00ff41" }}
-                    >
-                      FOUND
-                    </div>
-                  )}
+                  FOUND
                 </div>
-                <span
-                  className={`font-pixel text-[10px] sm:text-[12px] uppercase tracking-wider transition-colors ${
-                    canClick
-                      ? "text-blue-400 group-hover:text-blue-300"
-                      : rabbitCompleted
-                        ? "text-green-600"
-                        : "text-gray-600"
-                  }`}
-                >
-                  {label}
-                </span>
-              </button>
-            );
-          })()}
+              )}
+            </div>
+            <span
+              className={`font-pixel text-[10px] sm:text-[12px] uppercase tracking-wider transition-colors ${
+                rabbitCompleted
+                  ? "text-green-600"
+                  : "text-blue-400 group-hover:text-blue-300"
+              }`}
+            >
+              {rabbitCompleted ? "Already found" : "The rabbit hole"}
+            </span>
+          </button>
         </div>
 
         {/* Close hint */}
