@@ -71,6 +71,7 @@ export interface CityBuilding {
   active_raid_tag?: { attacker_login: string; tag_style: string; expires_at: string } | null;
   rabbit_completed: boolean;
   district?: string;
+  district_chosen?: boolean;
   position: [number, number, number];
   width: number;
   depth: number;
@@ -306,7 +307,7 @@ function precomputeComposites(
 
 // ─── District Layout ────────────────────────────────────────
 
-const DISTRICT_NAMES: Record<string, string> = {
+export const DISTRICT_NAMES: Record<string, string> = {
   downtown: 'Downtown',
   frontend: 'Frontend', backend: 'Backend', fullstack: 'Full Stack',
   mobile: 'Mobile', data_ai: 'Data & AI', devops: 'DevOps & Cloud',
@@ -314,12 +315,26 @@ const DISTRICT_NAMES: Record<string, string> = {
   creator: 'Creator',
 };
 
-const DISTRICT_COLORS: Record<string, string> = {
+export const DISTRICT_COLORS: Record<string, string> = {
   downtown: '#fbbf24',
   frontend: '#3b82f6', backend: '#ef4444', fullstack: '#a855f7',
   mobile: '#22c55e', data_ai: '#06b6d4', devops: '#f97316',
   security: '#dc2626', gamedev: '#ec4899', vibe_coder: '#8b5cf6',
   creator: '#eab308',
+};
+
+export const DISTRICT_DESCRIPTIONS: Record<string, string> = {
+  downtown: 'The elite core. Top 50 devs by global rank.',
+  frontend: 'Pixels, components, and beautiful interfaces.',
+  backend: 'APIs, systems, and server-side logic.',
+  fullstack: 'Jack of all trades. Ship everything.',
+  mobile: 'Native apps for iOS and Android.',
+  data_ai: 'Data science, ML, and AI.',
+  devops: 'Infrastructure, CI/CD, and cloud.',
+  security: 'Hacking, defense, and cryptography.',
+  gamedev: 'Game engines, physics, and fun.',
+  vibe_coder: 'Aesthetic code. Vibes over velocity.',
+  creator: 'Open-source tools and content.',
 };
 
 const LANGUAGE_TO_DISTRICT: Record<string, string> = {

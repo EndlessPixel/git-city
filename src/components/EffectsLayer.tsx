@@ -86,10 +86,10 @@ function querySpatialGrid(grid: GridIndex, x: number, z: number, radius: number)
 
 // ─── Constants ─────────────────────────────────────────────────
 
-const EFFECTS_RADIUS = 250;
-const EFFECTS_RADIUS_HYSTERESIS = 320;
+const EFFECTS_RADIUS = 400;
+const EFFECTS_RADIUS_HYSTERESIS = 480;
 const EFFECTS_UPDATE_INTERVAL = 0.3; // seconds
-const MAX_ACTIVE_EFFECTS = 30;
+const MAX_ACTIVE_EFFECTS = 40;
 
 // ─── Component ─────────────────────────────────────────────────
 

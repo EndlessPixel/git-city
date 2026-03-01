@@ -7,6 +7,8 @@ import type { Session } from "@supabase/supabase-js";
 import { createBrowserSupabase } from "@/lib/supabase";
 import {
   generateCityLayout,
+  DISTRICT_NAMES,
+  DISTRICT_COLORS,
   type CityBuilding,
   type CityPlaza,
   type CityDecoration,
@@ -28,6 +30,7 @@ import RaidOverlay from "@/components/RaidOverlay";
 import PillModal from "@/components/PillModal";
 import FounderMessage from "@/components/FounderMessage";
 import RabbitCompletion from "@/components/RabbitCompletion";
+import DistrictChooser from "@/components/DistrictChooser";
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
 import MiniMap from "@/components/MiniMap";
 import { getCityCache, setCityCache, clearCityCache } from "@/lib/cityCache";
@@ -429,6 +432,7 @@ function HomeContent() {
   const [caCopied, setCaCopied] = useState(false);
   const [pillModalOpen, setPillModalOpen] = useState(false);
   const [founderMessageOpen, setFounderMessageOpen] = useState(false);
+  const [districtChooserOpen, setDistrictChooserOpen] = useState(false);
   const [rabbitCinematic, setRabbitCinematic] = useState(false);
   const [rabbitCinematicPhase, setRabbitCinematicPhase] = useState(-1);
   const [rabbitProgress, setRabbitProgress] = useState(() => {
@@ -1291,8 +1295,11 @@ function HomeContent() {
 
       setFeedback(null);
 
-      // Reload city with cache-bust so the new dev is included
-      const updatedBuildings = await reloadCity(true);
+      // Only reload city if the dev is new — skip the full reload when they already exist
+      let updatedBuildings: CityBuilding[] | null = null;
+      if (!existedBefore) {
+        updatedBuildings = await reloadCity(true);
+      }
 
       // Focus camera on the searched building
       setFocusedBuilding(devData.github_login);
@@ -1308,8 +1315,9 @@ function HomeContent() {
         setTimeout(() => setGhostPreviewLogin(null), 4000);
       }
 
-      // Find the building in the updated city
-      const foundBuilding = updatedBuildings?.find(
+      // Find the building in the current or updated city
+      const searchPool = updatedBuildings ?? buildings;
+      const foundBuilding = searchPool.find(
         (b: CityBuilding) => b.login.toLowerCase() === trimmed
       );
 
@@ -1405,6 +1413,16 @@ function HomeContent() {
     !!session &&
     !!myBuilding?.claimed &&
     !myBuilding.owned_items.includes("flag");
+
+  // Show district chooser once per session when user hasn't chosen yet
+  const shouldShowDistrictChooser =
+    !!session && !!myBuilding?.claimed && !myBuilding.district_chosen;
+
+  useEffect(() => {
+    if (shouldShowDistrictChooser && !sessionStorage.getItem("district_dismissed")) {
+      setDistrictChooserOpen(true);
+    }
+  }, [shouldShowDistrictChooser]);
 
   // Streak auto check-in (1x per browser session)
   const { streakData } = useStreakCheckin(session, !!myBuilding?.claimed);
@@ -2374,6 +2392,18 @@ function HomeContent() {
                   )}
                 </div>
               </div>
+
+              {/* District badge */}
+              {selectedBuilding.district && (
+                <div className="px-4 pb-2">
+                  <span
+                    className="inline-block px-2 py-0.5 text-[8px] text-bg"
+                    style={{ backgroundColor: DISTRICT_COLORS[selectedBuilding.district] ?? '#888' }}
+                  >
+                    {DISTRICT_NAMES[selectedBuilding.district] ?? selectedBuilding.district}
+                  </span>
+                </div>
+              )}
 
               {/* Stats */}
               <div className="grid grid-cols-3 gap-px bg-border/30 mx-4 mb-3 border border-border/50">
@@ -3402,6 +3432,27 @@ function HomeContent() {
           raidData={raidState.raidData}
           onSkip={raidActions.skipToShare}
           onExit={raidActions.exitRaid}
+        />
+      )}
+
+      {/* District chooser modal */}
+      {districtChooserOpen && myBuilding && (
+        <DistrictChooser
+          currentDistrict={myBuilding.district ?? null}
+          inferredDistrict={myBuilding.district ?? null}
+          onClose={() => { sessionStorage.setItem("district_dismissed", "1"); setDistrictChooserOpen(false); }}
+          onChosen={(districtId) => {
+            sessionStorage.setItem("district_dismissed", "1");
+            setDistrictChooserOpen(false);
+            // Update the building in local state
+            setBuildings((prev) =>
+              prev.map((b) =>
+                b.login === myBuilding.login
+                  ? { ...b, district: districtId, district_chosen: true }
+                  : b
+              )
+            );
+          }}
         />
       )}
 
